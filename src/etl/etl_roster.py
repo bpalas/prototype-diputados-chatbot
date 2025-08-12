@@ -2,9 +2,9 @@
 # -*- coding: utf-8 -*-
 
 """
-ETL para poblar las tablas dim_parlamentario y relacionadas.
-Versión que integra datos de la Cámara de Diputados y la BCN,
-incluyendo profesión, nacionalidad y página de historia política.
+ETL para poblar las tablas dim_parlamentario y dim_partidos y relacionadas.
+Versión que integra datos de la Cámara, BCN para parlamentarios y una tabla
+dim_partidos enriquecida desde la BCN.
 """
 
 import sqlite3
@@ -21,7 +21,8 @@ DB_PATH = os.path.join(PROJECT_ROOT, 'data', 'database', 'parlamento.db')
 API_CAMARA_URL = "https://opendata.camara.cl/camaradiputados/WServices/WSDiputado.asmx/retornarDiputadosPeriodoActual"
 BCN_SPARQL_ENDPOINT = "http://datos.bcn.cl/sparql"
 
-# --- ESQUEMA SQL CON NUEVOS CAMPOS ---
+
+# --- ESQUEMA SQL CON TABLA dim_partidos ENRIQUECIDA ---
 SQL_SCHEMA_SAFE = """
 CREATE TABLE IF NOT EXISTS dim_parlamentario (
     mp_uid INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -50,9 +51,13 @@ CREATE TABLE IF NOT EXISTS dim_parlamentario (
 CREATE TABLE IF NOT EXISTS dim_partidos (
     partido_id INTEGER PRIMARY KEY AUTOINCREMENT,
     nombre_partido TEXT NOT NULL UNIQUE,
+    nombre_alternativo TEXT,
     sigla TEXT,
-    fecha_fundacion DATE,
-    sitio_web TEXT
+    fecha_fundacion TEXT,
+    sitio_web TEXT,
+    url_historia_politica TEXT,
+    url_logo TEXT,
+    ultima_actualizacion DATETIME
 );
 
 CREATE TABLE IF NOT EXISTS militancia_historial (
@@ -66,29 +71,29 @@ CREATE TABLE IF NOT EXISTS militancia_historial (
     FOREIGN KEY (partido_id) REFERENCES dim_partidos(partido_id) ON DELETE CASCADE
 );
 
-CREATE TABLE IF NOT EXISTS parlamentario_aliases (
-    alias_id INTEGER PRIMARY KEY AUTOINCREMENT,
-    mp_uid INTEGER NOT NULL,
-    alias TEXT NOT NULL UNIQUE,
-    FOREIGN KEY (mp_uid) REFERENCES dim_parlamentario(mp_uid) ON DELETE CASCADE
+-- (Otras tablas como dim_coaliciones, electoral_results, etc.)
+CREATE TABLE IF NOT EXISTS dim_coaliciones (
+   coalicion_id INTEGER PRIMARY KEY AUTOINCREMENT,
+   nombre_coalicion TEXT NOT NULL UNIQUE
 );
 
-CREATE TABLE IF NOT EXISTS dim_coaliciones (
-    coalicion_id INTEGER PRIMARY KEY AUTOINCREMENT,
-    nombre_coalicion TEXT NOT NULL UNIQUE
+CREATE TABLE IF NOT EXISTS parlamentario_aliases (
+   alias_id INTEGER PRIMARY KEY AUTOINCREMENT,
+   mp_uid INTEGER NOT NULL,
+   alias TEXT NOT NULL UNIQUE,
+   FOREIGN KEY (mp_uid) REFERENCES dim_parlamentario(mp_uid) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS electoral_results (
-    result_id INTEGER PRIMARY KEY AUTOINCREMENT,
-    mp_uid INTEGER NOT NULL,
-    fecha_eleccion DATE NOT NULL,
-    cargo TEXT,
-    distrito INTEGER,
-    total_votos INTEGER,
-    FOREIGN KEY (mp_uid) REFERENCES dim_parlamentario(mp_uid) ON DELETE CASCADE
+   result_id INTEGER PRIMARY KEY AUTOINCREMENT,
+   mp_uid INTEGER NOT NULL,
+   fecha_eleccion DATE NOT NULL,
+   cargo TEXT,
+   distrito INTEGER,
+   total_votos INTEGER,
+   FOREIGN KEY (mp_uid) REFERENCES dim_parlamentario(mp_uid) ON DELETE CASCADE
 );
 
--- ÍNDICES
 CREATE INDEX IF NOT EXISTS idx_militancia_mp ON militancia_historial(mp_uid);
 """
 
@@ -130,7 +135,7 @@ def fetch_camara_data_df():
         diputados_list.append({
             'diputadoid': diputado.findtext('v1:Id', namespaces=ns),
             'nombre_completo': f"{diputado.findtext('v1:Nombre', default='', namespaces=ns).strip()} {diputado.findtext('v1:ApellidoPaterno', default='', namespaces=ns).strip()} {diputado.findtext('v1:ApellidoMaterno', default='', namespaces=ns).strip()}".strip(),
-            'apellido_materno_camara': diputado.findtext('v1:ApellidoMaterno', default='', namespaces=ns).strip(), # <-- CAMBIO (renombrado para evitar conflicto)
+            'apellido_materno_camara': diputado.findtext('v1:ApellidoMaterno', default='', namespaces=ns).strip(),
             'genero': "Femenino" if sexo_tag is not None and sexo_tag.get('Valor') == '0' else "Masculino",
             'distrito_camara': distrito_tag.get('Numero') if distrito_tag is not None else None,
             'militancias': militancias
@@ -139,49 +144,36 @@ def fetch_camara_data_df():
     print(f"✔️  [ROSTER ETL] Se procesaron {len(diputados_list)} diputados desde la Cámara.")
     return pd.DataFrame(diputados_list)
 
+
 def fetch_bcn_data_df():
     """Obtiene datos específicos de la BCN para los parlamentarios usando una consulta SPARQL optimizada."""
     print("📚  [ROSTER ETL] Obteniendo datos específicos desde la BCN...")
     sparql = SPARQLWrapper(BCN_SPARQL_ENDPOINT)
     sparql.setReturnFormat(JSON)
     
-    # <-- CAMBIO: Consulta SPARQL actualizada
     query_bcn_optimised = """
         PREFIX bcnbio: <http://datos.bcn.cl/ontologies/bcn-biographies#>
         PREFIX foaf: <http://xmlns.com/foaf/0.1/>
-        PREFIX wikidataprop: <http://www.wikidata.org/entity/>
         PREFIX dc: <http://purl.org/dc/elements/1.1/>
         PREFIX bio: <http://purl.org/vocab/bio/0.1/>
 
         SELECT 
-            ?bcn_uri
-            ?diputadoid
-            ?nombre_propio
-            ?apellido_paterno
-            ?apellido_materno
-            ?fecha_nacimiento
-            ?lugar_nacimiento
-            ?url_foto
-            ?twitter_handle
-            ?sitio_web_personal
-            ?titulo_honorifico
-            ?profesion
-            ?nacionalidad
-            ?url_historia_politica
+            ?bcn_uri ?diputadoid ?nombre_propio ?apellido_paterno ?apellido_materno
+            ?fecha_nacimiento ?lugar_nacimiento ?url_foto ?twitter_handle
+            ?sitio_web_personal ?titulo_honorifico ?profesion ?nacionalidad ?url_historia_politica
         WHERE {
           ?bcn_uri bcnbio:idCamaraDeDiputados ?diputadoid .
-          
           OPTIONAL { ?bcn_uri foaf:givenName ?nombre_propio . }
           OPTIONAL { ?bcn_uri bcnbio:surnameOfFather ?apellido_paterno . }
           OPTIONAL { ?bcn_uri bcnbio:surnameOfMother ?apellido_materno . }
           OPTIONAL {
             ?bcn_uri bcnbio:hasBorn ?nacimiento_uri .
             ?nacimiento_uri dc:date ?fecha_nacimiento .
-            ?nacimiento_uri bio:place ?lugar_nacimiento .
+            OPTIONAL { ?nacimiento_uri bio:place ?lugar_nacimiento . }
           }
           OPTIONAL { ?bcn_uri foaf:thumbnail ?url_foto . }
           OPTIONAL { ?bcn_uri bcnbio:twitterAccount ?twitter_handle . }
-          OPTIONAL { ?bcn_uri wikidataprop:P856 ?sitio_web_personal . }
+          OPTIONAL { ?bcn_uri foaf:homepage ?sitio_web_personal . }
           OPTIONAL { ?bcn_uri bcnbio:honorificPrefix ?titulo_honorifico . }
           OPTIONAL { ?bcn_uri bcnbio:profession ?profesion . }
           OPTIONAL { ?bcn_uri bcnbio:nationality ?nacionalidad . } 
@@ -202,7 +194,6 @@ def fetch_bcn_data_df():
         return pd.DataFrame()
         
     bcn_list = []
-    # <-- CAMBIO: Se añaden los nuevos campos al diccionario
     for res in results:
         bcn_list.append({
             'bcn_uri': res.get('bcn_uri', {}).get('value'),
@@ -225,8 +216,71 @@ def fetch_bcn_data_df():
     print(f"✔️  [ROSTER ETL] Se procesaron {len(df_bcn)} perfiles únicos de la BCN.")
     return df_bcn
 
-# --- 3. FASE DE CARGA (Load) ---
 
+# --- FUNCIÓN DE EXTRACCIÓN PARA PARTIDOS MEJORADA ---
+def fetch_partidos_bcn_df():
+    """Obtiene datos detallados de los partidos políticos desde la BCN usando SPARQL."""
+    print("🏛️  [PARTIDOS ETL] Obteniendo datos enriquecidos de Partidos Políticos desde la BCN...")
+    sparql = SPARQLWrapper(BCN_SPARQL_ENDPOINT)
+    sparql.setReturnFormat(JSON)
+
+    # Consulta SPARQL para obtener todos los datos deseados, agrupando los alternativos
+    query_partidos = """
+        PREFIX foaf: <http://xmlns.com/foaf/0.1/>
+        PREFIX skos: <http://www.w3.org/2004/02/skos/core#>
+        PREFIX bcnbio: <http://datos.bcn.cl/ontologies/bcn-biographies#>
+
+        SELECT
+            ?nombre
+            (GROUP_CONCAT(DISTINCT ?altLabel; SEPARATOR=", ") AS ?nombres_alternativos)
+            ?sigla
+            ?foundationYear
+            ?homepage
+            ?bcnPage
+            ?logo
+            ?lastUpdate
+        WHERE {
+            ?partido_uri a bcnbio:PoliticalParty .
+            
+            OPTIONAL { ?partido_uri foaf:name ?nombre . }
+            OPTIONAL { ?partido_uri skos:altLabel ?altLabel . }
+            OPTIONAL { ?partido_uri bcnbio:hasAcronym ?sigla . }
+            OPTIONAL { ?partido_uri bcnbio:hasFoundationYear ?foundationYear . }
+            OPTIONAL { ?partido_uri foaf:homepage ?homepage . }
+            OPTIONAL { ?partido_uri bcnbio:bcnPage ?bcnPage . }
+            OPTIONAL { ?partido_uri foaf:img ?logo . }
+            OPTIONAL { ?partido_uri bcnbio:lastUpdate ?lastUpdate . }
+        }
+        GROUP BY ?nombre ?sigla ?foundationYear ?homepage ?bcnPage ?logo ?lastUpdate
+    """
+    sparql.setQuery(query_partidos)
+
+    try:
+        results = sparql.query().convert()["results"]["bindings"]
+        print(f"✅  [PARTIDOS ETL] Datos de partidos recibidos.")
+    except Exception as e:
+        print(f"❌  [PARTIDOS ETL] Error al consultar el SPARQL de la BCN para partidos: {e}")
+        return pd.DataFrame()
+
+    partidos_list = []
+    for res in results:
+        partidos_list.append({
+            'nombre_partido': res.get('nombre', {}).get('value'),
+            'nombre_alternativo': res.get('nombres_alternativos', {}).get('value'),
+            'sigla': res.get('sigla', {}).get('value'),
+            'fecha_fundacion': res.get('foundationYear', {}).get('value'),
+            'sitio_web': res.get('homepage', {}).get('value'),
+            'url_historia_politica': res.get('bcnPage', {}).get('value'),
+            'url_logo': res.get('logo', {}).get('value'),
+            'ultima_actualizacion': res.get('lastUpdate', {}).get('value'),
+        })
+    
+    df_partidos = pd.DataFrame(partidos_list).dropna(subset=['nombre_partido'])
+    print(f"✔️  [PARTIDOS ETL] Se procesaron {len(df_partidos.index)} partidos políticos con datos enriquecidos.")
+    return df_partidos
+
+
+# --- 3. FASE DE CARGA (Load) ---
 def setup_database(conn):
     """Asegura que las tablas existan en la base de datos usando el esquema seguro."""
     print("🛠️  [DB Setup] Verificando que las tablas existan...")
@@ -239,10 +293,12 @@ def setup_database(conn):
         print(f"❌  [DB Setup] Error al verificar/crear el esquema SQL: {e}")
         raise
 
+
 def clear_data(conn):
     """Limpia las tablas que este script va a poblar para una carga fresca."""
     print("🧹  [DB Load] Limpiando datos antiguos para la nueva carga...")
     cursor = conn.cursor()
+    # Se elimina partido_aliases
     tables_to_clear = ['militancia_historial', 'dim_parlamentario', 'dim_partidos']
     for table in tables_to_clear:
         try:
@@ -253,23 +309,37 @@ def clear_data(conn):
     conn.commit()
     print("✅  [DB Load] Tablas relevantes limpiadas.")
 
-def load_data_to_db(df, conn):
-    """Carga el DataFrame procesado en las tablas normalizadas de la BD."""
+
+def load_data_to_db(df_parlamentarios, df_partidos, conn):
+    """Carga los DataFrames procesados en las tablas normalizadas de la BD."""
     print("⚙️  [DB Load] Iniciando carga de datos en la base de datos...")
     cursor = conn.cursor()
     
-    print("  -> Cargando partidos políticos...")
-    partidos_unicos = set(m['partido'] for militancias in df['militancias'] for m in militancias)
-    cursor.executemany("INSERT OR IGNORE INTO dim_partidos (nombre_partido) VALUES (?)", [(p,) for p in partidos_unicos])
-    
+    print("  -> Cargando partidos políticos con datos enriquecidos...")
+    # Lógica de carga para la tabla dim_partidos actualizada
+    for _, row in df_partidos.iterrows():
+        try:
+            cursor.execute("""
+                INSERT OR REPLACE INTO dim_partidos (
+                    nombre_partido, nombre_alternativo, sigla, fecha_fundacion, 
+                    sitio_web, url_historia_politica, url_logo, ultima_actualizacion
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                row['nombre_partido'], row['nombre_alternativo'], row['sigla'],
+                row['fecha_fundacion'], row['sitio_web'], row['url_historia_politica'],
+                row['url_logo'], row['ultima_actualizacion']
+            ))
+        except sqlite3.IntegrityError as e:
+            print(f"  ⚠️  Advertencia al cargar partido {row['nombre_partido']}: {e}.")
+            continue
+            
     cursor.execute("SELECT partido_id, nombre_partido FROM dim_partidos")
     partido_map = {nombre: id for id, nombre in cursor.fetchall()}
     print(f"  -> {len(partido_map)} partidos cargados/verificados.")
 
     print("  -> Cargando parlamentarios y su historial de militancia...")
-    for _, row in df.iterrows():
+    for _, row in df_parlamentarios.iterrows():
         try:
-            # <-- CAMBIO: Sentencia INSERT actualizada con los nuevos campos
             cursor.execute("""
                 INSERT INTO dim_parlamentario (
                     diputadoid, nombre_completo, nombre_propio, apellido_paterno, apellido_materno,
@@ -305,24 +375,24 @@ def load_data_to_db(df, conn):
 # --- 4. ORQUESTACIÓN ---
 def main():
     """Función principal que orquesta el proceso ETL completo."""
-    print("--- Iniciando Proceso ETL: Roster Parlamentario ---")
+    print("--- Iniciando Proceso ETL: Roster Parlamentario y Partidos ---")
     
     # Fase 1: Extracción y Transformación
     df_camara = fetch_camara_data_df()
-    df_bcn = fetch_bcn_data_df()
+    df_bcn_parlamentarios = fetch_bcn_data_df()
+    df_partidos = fetch_partidos_bcn_df()
 
-    if df_camara is None or df_bcn.empty:
+    if df_camara is None or df_bcn_parlamentarios.empty:
         print("\n❌  ETL de Roster no pudo completarse debido a un error en la obtención de datos.")
         return
 
-    print("\n🤝  [TRANSFORM] Realizando el cruce (merge) de datos...")
-    df_final = pd.merge(df_camara, df_bcn, on='diputadoid', how='left')
+    print("\n🤝  [TRANSFORM] Realizando el cruce (merge) de datos de parlamentarios...")
+    df_final_parlamentarios = pd.merge(df_camara, df_bcn_parlamentarios, on='diputadoid', how='left')
     
-    # <-- CAMBIO: Prioriza el apellido materno de BCN si existe
-    df_final['apellido_materno'] = df_final['apellido_materno'].fillna(df_final['apellido_materno_camara'])
-    df_final.drop(columns=['apellido_materno_camara'], inplace=True)
+    df_final_parlamentarios['apellido_materno'] = df_final_parlamentarios['apellido_materno'].fillna(df_final_parlamentarios['apellido_materno_camara'])
+    df_final_parlamentarios.drop(columns=['apellido_materno_camara'], inplace=True)
 
-    print(f"✅  [TRANSFORM] Cruce completado. DataFrame final con {len(df_final)} registros listo para cargar.")
+    print(f"✅  [TRANSFORM] Cruce completado. DataFrame final con {len(df_final_parlamentarios)} registros listo para cargar.")
 
     # Fase 2: Conexión y Carga a la Base de Datos
     try:
@@ -332,12 +402,12 @@ def main():
             
             setup_database(conn)
             clear_data(conn)
-            load_data_to_db(df_final, conn)
+            load_data_to_db(df_final_parlamentarios, df_partidos, conn)
 
     except Exception as e:
         print(f"❌  Error Crítico durante la operación con la Base de Datos: {e}")
 
-    print("\n--- Proceso ETL de Roster Finalizado ---")
+    print("\n--- Proceso ETL Finalizado ---")
 
 if __name__ == "__main__":
     main()
