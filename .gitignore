@@ -3,6 +3,10 @@ __pycache__/
 *.py[codz]
 *$py.class
 
+# Ignorar todos los archivos de base de datos de SQLite
+*.db
+
+
 # C extensions
 *.so
 
