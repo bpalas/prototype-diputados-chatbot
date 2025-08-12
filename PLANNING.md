@@ -1,63 +1,60 @@
-
 ### Código Markdown Mejorado
 
 # 🗺️ Planificación y Seguimiento del Prototipo
 
-Este documento detalla la planificación y el seguimiento del desarrollo del prototipo, conectando cada tarea con su respectivo avance y commits.
+Este documento detalla la planificación y el seguimiento del desarrollo del prototipo, conectando cada tarea con su respectivo avance.
 
 ---
 
-## 🎯 Carta Gantt (Objetivo: 2 Semanas)
+## 🎯 Plan de Trabajo (1 Semana)
 
-### Semana 1: Backend y Base de Datos (11 ago - 15 ago)
+**Objetivo:** Tener la base de datos completa y la app web funcional para el lunes de la próxima semana.
 
-| Tarea | Fecha Inicio | Fecha Fin | Duración | Estado | Progreso |
-| :--- | :---: | :---: | :---: | :---: | :--- |
-| **T1:** Setup y Esquema SQL | 11-08 | 12-08 | 2 días | 🏃 En curso | `[█████░░░░]` |
-| **T2:** Desarrollar `etl_roster.py` | 13-08 | 13-08 | 1 día | ⏳ Pendiente | `[░░░░░░░░░░]` |
-| **T3:** Desarrollar `etl_votes.py` | 14-08 | 15-08 | 2 días | ⏳ Pendiente | `[░░░░░░░░░░]` |
+### Cronograma Diario
 
-<br>
+| Día         | Tarea Principal                                      | Estado      |
+|-------------|------------------------------------------------------|-------------|
+| Lunes (11-08)   | Setup del proyecto, estructura de carpetas, esquema SQL y creación de BD | ✅ Listo     |
+| Martes (12-08)  | Finalizar `etl_roster.py` (biografías, distritos) y comenzar `etl_votes.py` | 🏃 En curso  |
+| Miércoles (13-08)| Terminar `etl_votes.py` y desarrollar `etl_transcripts.py` (tabla `speech_turns`) | ⏳ Pendiente |
+| Jueves (14-08)  | Desarrollar `etl_news_graph.py` (tabla `interactions`) y `alias_resolver.py` | ⏳ Pendiente |
+| Viernes (15-08) | Desarrollar y probar la app web (Streamlit) usando la base de datos completa | ⏳ Pendiente |
 
-### Semana 2: Lógica Core y Frontend (18 ago - 22 ago)
+---
 
-| Tarea | Fecha Inicio | Fecha Fin | Duración | Estado | Progreso |
-| :--- | :---: | :---: | :---: | :---: | :--- |
-| **T4:** Módulo `alias_resolver.py` | 18-08 | 19-08 | 2 días | ⏳ Pendiente | `[░░░░░░░░░░]` |
-| **T5:** Desarrollo App Streamlit | 20-08 | 21-08 | 2 días | ⏳ Pendiente | `[░░░░░░░░░░]` |
-| **T6:** Integración Final y README | 22-08 | 22-08 | 1 día | ⏳ Pendiente | `[░░░░░░░░░░]` |
+## ✅ Avances y Trabajo por Día
 
-## ✅ Registro de Avance y Commits
+### Lunes (11-08)
+- Estructura de carpetas y archivos creada (`src/`, `data/`, `tests/`, etc.).
+- Redacción y mejora del archivo `README.md`.
+- Esquema preliminar y final de la base de datos en `data/docs/schema.sql`.
+- Base de datos SQLite (`parlamento.db`) creada y probada.
 
-Aquí se documenta el progreso de cada tarea, vinculando los commits para una trazabilidad completa.
+### Martes (12-08)
+- Finalizar el script `etl_roster.py` para poblar la tabla `dim_parlamentario` con biografías y distritos.
+- Comenzar el desarrollo de `etl_votes.py` para poblar las tablas `votes` y `bills`.
 
-### Semana 1
+### Miércoles (13-08)
+- Terminar el script `etl_votes.py`.
+- Desarrollar el script `etl_transcripts.py` para cargar discursos en la tabla `speech_turns`.
 
-  * **T1: Setup y Esquema SQL** `[Completada]`
+### Jueves (14-08)
+- Desarrollar el script `etl_news_graph.py` para poblar la tabla `interactions`.
+- Desarrollar el módulo `alias_resolver.py` y sus tests unitarios.
 
-      * **Commit:** [`Add initial empty files for project structure`](https://github.com/bpalas/prototype-diputados-chatbot/commit/e0b33b129ae663f44961e897d6be8376656d6187) - *build: setup inicial del proyecto y directorios.*
+### Viernes (15-08)
+- Desarrollar y probar la app web con Streamlit usando la base de datos completa.
 
-  * **T2: Desarrollar `etl_roster.py`** `[Completada]`
+---
 
-      * **Commits:** `[PENDIENTE DE REGISTRO]`
+## 📝 Scripts por Desarrollar
 
-  * **T3: Desarrollar `etl_votes.py`** `[En Progreso]`
+- `etl_roster.py` (dim_parlamentario)
+- `etl_votes.py` (votes, bills)
+- `etl_transcripts.py` (speech_turns)
+- `etl_news_graph.py` (interactions)
+- `alias_resolver.py` (normalización de nombres)
+- Tests para `alias_resolver.py`
+- App web (`app.py` en Streamlit)
 
-      * **Commits:** `[PENDIENTE DE REGISTRO]`
-
-### Semana 2
-
-  * **T4: Módulo `alias_resolver.py` (v1)** `[Pendiente]`
-
-      * **Commits:** `[PENDIENTE]`
-
-  * **T5: Desarrollo App Streamlit** `[Pendiente]`
-
-      * **Commits:** `[PENDIENTE]`
-
-  * **T6: Integración Final y README** `[Pendiente]`
-
-      * **Commits:** `[PENDIENTE]`
-
-<!-- end list -->
-
+<!-- end list --
