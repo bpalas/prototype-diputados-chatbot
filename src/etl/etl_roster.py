@@ -26,8 +26,12 @@ SQL_SCHEMA_SAFE = """
 CREATE TABLE IF NOT EXISTS dim_parlamentario (
     mp_uid INTEGER PRIMARY KEY AUTOINCREMENT,
     nombre_completo TEXT NOT NULL,
+    nombre_propio TEXT,
+    apellido_paterno TEXT,
     apellido_materno TEXT,
     genero TEXT,
+    fecha_nacimiento DATE,
+    lugar_nacimiento TEXT,
     distrito INTEGER,
     fechas_mandato TEXT,
     diputadoid TEXT UNIQUE,
@@ -126,7 +130,7 @@ def fetch_camara_data_df():
         diputados_list.append({
             'diputadoid': diputado.findtext('v1:Id', namespaces=ns),
             'nombre_completo': f"{diputado.findtext('v1:Nombre', default='', namespaces=ns).strip()} {diputado.findtext('v1:ApellidoPaterno', default='', namespaces=ns).strip()} {diputado.findtext('v1:ApellidoMaterno', default='', namespaces=ns).strip()}".strip(),
-            'apellido_materno': diputado.findtext('v1:ApellidoMaterno', default='', namespaces=ns).strip(),
+            'apellido_materno_camara': diputado.findtext('v1:ApellidoMaterno', default='', namespaces=ns).strip(), # <-- CAMBIO (renombrado para evitar conflicto)
             'genero': "Femenino" if sexo_tag is not None and sexo_tag.get('Valor') == '0' else "Masculino",
             'distrito_camara': distrito_tag.get('Numero') if distrito_tag is not None else None,
             'militancias': militancias
@@ -141,14 +145,22 @@ def fetch_bcn_data_df():
     sparql = SPARQLWrapper(BCN_SPARQL_ENDPOINT)
     sparql.setReturnFormat(JSON)
     
+    # <-- CAMBIO: Consulta SPARQL actualizada
     query_bcn_optimised = """
         PREFIX bcnbio: <http://datos.bcn.cl/ontologies/bcn-biographies#>
         PREFIX foaf: <http://xmlns.com/foaf/0.1/>
         PREFIX wikidataprop: <http://www.wikidata.org/entity/>
+        PREFIX dc: <http://purl.org/dc/elements/1.1/>
+        PREFIX bio: <http://purl.org/vocab/bio/0.1/>
 
         SELECT 
             ?bcn_uri
             ?diputadoid
+            ?nombre_propio
+            ?apellido_paterno
+            ?apellido_materno
+            ?fecha_nacimiento
+            ?lugar_nacimiento
             ?url_foto
             ?twitter_handle
             ?sitio_web_personal
@@ -159,6 +171,14 @@ def fetch_bcn_data_df():
         WHERE {
           ?bcn_uri bcnbio:idCamaraDeDiputados ?diputadoid .
           
+          OPTIONAL { ?bcn_uri foaf:givenName ?nombre_propio . }
+          OPTIONAL { ?bcn_uri bcnbio:surnameOfFather ?apellido_paterno . }
+          OPTIONAL { ?bcn_uri bcnbio:surnameOfMother ?apellido_materno . }
+          OPTIONAL {
+            ?bcn_uri bcnbio:hasBorn ?nacimiento_uri .
+            ?nacimiento_uri dc:date ?fecha_nacimiento .
+            ?nacimiento_uri bio:place ?lugar_nacimiento .
+          }
           OPTIONAL { ?bcn_uri foaf:thumbnail ?url_foto . }
           OPTIONAL { ?bcn_uri bcnbio:twitterAccount ?twitter_handle . }
           OPTIONAL { ?bcn_uri wikidataprop:P856 ?sitio_web_personal . }
@@ -182,10 +202,16 @@ def fetch_bcn_data_df():
         return pd.DataFrame()
         
     bcn_list = []
+    # <-- CAMBIO: Se añaden los nuevos campos al diccionario
     for res in results:
         bcn_list.append({
             'bcn_uri': res.get('bcn_uri', {}).get('value'),
             'diputadoid': res.get('diputadoid', {}).get('value'),
+            'nombre_propio': res.get('nombre_propio', {}).get('value'),
+            'apellido_paterno': res.get('apellido_paterno', {}).get('value'),
+            'apellido_materno': res.get('apellido_materno', {}).get('value'),
+            'fecha_nacimiento': res.get('fecha_nacimiento', {}).get('value'),
+            'lugar_nacimiento': res.get('lugar_nacimiento', {}).get('value'),
             'url_foto': res.get('url_foto', {}).get('value'),
             'twitter_handle': res.get('twitter_handle', {}).get('value'),
             'sitio_web_personal': res.get('sitio_web_personal', {}).get('value'),
@@ -243,18 +269,20 @@ def load_data_to_db(df, conn):
     print("  -> Cargando parlamentarios y su historial de militancia...")
     for _, row in df.iterrows():
         try:
+            # <-- CAMBIO: Sentencia INSERT actualizada con los nuevos campos
             cursor.execute("""
                 INSERT INTO dim_parlamentario (
-                    diputadoid, nombre_completo, apellido_materno, genero, distrito,
-                    bcn_uri, url_foto, twitter_handle, sitio_web_personal, titulo_honorifico,
-                    profesion, nacionalidad, url_historia_politica,
-                    fecha_extraccion
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_DATE)
+                    diputadoid, nombre_completo, nombre_propio, apellido_paterno, apellido_materno,
+                    genero, fecha_nacimiento, lugar_nacimiento, distrito, bcn_uri, url_foto,
+                    twitter_handle, sitio_web_personal, titulo_honorifico, profesion,
+                    nacionalidad, url_historia_politica, fecha_extraccion
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_DATE)
             """, (
-                row.get('diputadoid'), row.get('nombre_completo'), row.get('apellido_materno'),
-                row.get('genero'), row.get('distrito_camara'), row.get('bcn_uri'),
-                row.get('url_foto'), row.get('twitter_handle'), row.get('sitio_web_personal'), 
-                row.get('titulo_honorifico'),
+                row.get('diputadoid'), row.get('nombre_completo'), row.get('nombre_propio'),
+                row.get('apellido_paterno'), row.get('apellido_materno'), row.get('genero'),
+                row.get('fecha_nacimiento'), row.get('lugar_nacimiento'), row.get('distrito_camara'),
+                row.get('bcn_uri'), row.get('url_foto'), row.get('twitter_handle'),
+                row.get('sitio_web_personal'), row.get('titulo_honorifico'),
                 row.get('profesion'), row.get('nacionalidad'), row.get('url_historia_politica')
             ))
             mp_uid = cursor.lastrowid
@@ -289,6 +317,11 @@ def main():
 
     print("\n🤝  [TRANSFORM] Realizando el cruce (merge) de datos...")
     df_final = pd.merge(df_camara, df_bcn, on='diputadoid', how='left')
+    
+    # <-- CAMBIO: Prioriza el apellido materno de BCN si existe
+    df_final['apellido_materno'] = df_final['apellido_materno'].fillna(df_final['apellido_materno_camara'])
+    df_final.drop(columns=['apellido_materno_camara'], inplace=True)
+
     print(f"✅  [TRANSFORM] Cruce completado. DataFrame final con {len(df_final)} registros listo para cargar.")
 
     # Fase 2: Conexión y Carga a la Base de Datos

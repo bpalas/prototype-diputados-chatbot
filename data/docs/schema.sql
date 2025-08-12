@@ -7,25 +7,28 @@
 -- ---------------------------------------------------------------------------
 
 CREATE TABLE dim_parlamentario (
-    mp_uid INTEGER PRIMARY KEY AUTOINCREMENT,   -- Identificador único interno.
+    mp_uid INTEGER PRIMARY KEY AUTOINCREMENT,
     nombre_completo TEXT NOT NULL,
-    apellido_materno TEXT,     
+    nombre_propio TEXT,            -- <-- NUEVO
+    apellido_paterno TEXT,         -- <-- NUEVO
+    apellido_materno TEXT,
     genero TEXT,
+    fecha_nacimiento DATE,         -- <-- NUEVO
+    lugar_nacimiento TEXT,         -- <-- NUEVO
     distrito INTEGER,
-    fechas_mandato TEXT,                        -- E.g., "2018-2022, 2022-2026".
-    diputadoid TEXT,                            -- ID oficial de la API de la Cámara.
-    wikidata_qid TEXT,                          -- ID de Wikidata para enlaces semánticos.
-    bcn_uri TEXT,                               -- URI de la Biblioteca del Congreso Nacional.
-    url_foto TEXT,                              -- URL a una imagen del parlamentario.
-    twitter_handle TEXT,                        -- Usuario en X/Twitter.
-    sitio_web_personal TEXT,                    -- Blog o página personal.
-    titulo_honorifico TEXT,                     -- E.g., "H.D."
+    fechas_mandato TEXT,
+    diputadoid TEXT UNIQUE,
+    wikidata_qid TEXT,
+    bcn_uri TEXT,
+    url_foto TEXT,
+    twitter_handle TEXT,
+    sitio_web_personal TEXT,
+    titulo_honorifico TEXT,
     profesion TEXT,
     nacionalidad TEXT,
-    url_historia_politica, TEXT
+    url_historia_politica TEXT,
     fecha_extraccion DATE DEFAULT CURRENT_DATE
 );
-
 CREATE TABLE parlamentario_aliases (
     alias_id INTEGER PRIMARY KEY AUTOINCREMENT,
     mp_uid INTEGER NOT NULL,
