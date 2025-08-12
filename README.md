@@ -1,6 +1,3 @@
-Claro, aquí tienes tu archivo `README.md` mejorado, sin las marcas de citación y con una redacción más fluida.
-
------
 
 # Prototipo de Chatbot sobre Actividad Parlamentaria en Chile
 
