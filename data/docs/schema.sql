@@ -1,161 +1,103 @@
--- ###########################################################
--- ## Esquema de Base de Datos v2.1 (Enriquecido)           ##
--- ## ----------------------------------------------------- ##
--- ## Modelo consolidado con la tabla dim_partidos expandida ##
--- ## y optimizada con datos de la BCN.                      ##
--- ###########################################################
+-- ######################################################################
+-- ## Esquema de Base de Datos v3.0 (Modular y Mejorado)               ##
+-- ## ---------------------------------------------------------------- ##
+-- ## Modelo optimizado para análisis y RAG, organizado en módulos     ##
+-- ## lógicos para mayor claridad y escalabilidad.                     ##
+-- ######################################################################
 
--- ==========================================================
--- 1. TABLAS DE DIMENSIONES (Describen entidades)
--- ==========================================================
+-- ======================================================================
+-- MÓDULO 1: CORE - ENTIDADES PRINCIPALES (El "Quién")
+-- ======================================================================
+-- Describe las personas, grupos y conceptos fundamentales del sistema.
 
--- Tabla para almacenar información detallada de los parlamentarios.
 CREATE TABLE dim_parlamentario (
     mp_uid INTEGER PRIMARY KEY AUTOINCREMENT,
     nombre_completo TEXT NOT NULL,
     nombre_propio TEXT,
     apellido_paterno TEXT,
     apellido_materno TEXT,
-    genero TEXT,
+    genero TEXT CHECK (genero IN ('Masculino', 'Femenino')),
     fecha_nacimiento DATE,
     lugar_nacimiento TEXT,
-    distrito INTEGER,
-    fechas_mandato TEXT,
     diputadoid TEXT UNIQUE,
-    wikidata_qid TEXT,
     bcn_uri TEXT,
     url_foto TEXT,
     twitter_handle TEXT,
     sitio_web_personal TEXT,
-    titulo_honorifico TEXT,
     profesion TEXT,
-    nacionalidad TEXT,
     url_historia_politica TEXT,
-    fecha_extraccion DATE DEFAULT CURRENT_DATE
+    fecha_extraccion DATE DEFAULT (date('now'))
 );
 
--- Tabla para gestionar diferentes nombres o alias de un parlamentario.
 CREATE TABLE parlamentario_aliases (
     alias_id INTEGER PRIMARY KEY AUTOINCREMENT,
     mp_uid INTEGER NOT NULL,
-    alias TEXT NOT NULL UNIQUE,             -- E.g., "Pepe Auth", "Diputada Jiles".
-    FOREIGN KEY (mp_uid) REFERENCES dim_parlamentario(mp_uid)
+    alias TEXT NOT NULL UNIQUE,
+    FOREIGN KEY (mp_uid) REFERENCES dim_parlamentario(mp_uid) ON DELETE CASCADE
 );
 
--- CAMBIO: Tabla de partidos políticos enriquecida con datos de la BCN.
 CREATE TABLE dim_partidos (
     partido_id INTEGER PRIMARY KEY AUTOINCREMENT,
     nombre_partido TEXT NOT NULL UNIQUE,
-    nombre_alternativo TEXT,                -- CAMBIO: Añadido para nombres como "Unión Demócrata Independiente".
+    nombre_alternativo TEXT,
     sigla TEXT,
-    fecha_fundacion TEXT,                   -- CAMBIO: Tipo a TEXT para manejar solo el año (ej: "1983").
+    fecha_fundacion TEXT,
     sitio_web TEXT,
-    url_historia_politica TEXT,             -- CAMBIO: Añadido para enlace a la página de historia política en BCN.
-    url_logo TEXT,                          -- CAMBIO: Añadido para URL del logo del partido.
-    ultima_actualizacion TEXT               -- CAMBIO: Añadido para la fecha de última actualización desde BCN.
+    url_historia_politica TEXT,
+    url_logo TEXT,
+    ultima_actualizacion DATETIME
 );
 
--- Tabla para las coaliciones políticas.
 CREATE TABLE dim_coaliciones (
     coalicion_id INTEGER PRIMARY KEY AUTOINCREMENT,
     nombre_coalicion TEXT NOT NULL UNIQUE
 );
 
--- Tabla para almacenar información sobre los proyectos de ley.
-CREATE TABLE bills (
-    bill_id TEXT PRIMARY KEY,               -- E.g., "15665-07".
-    resumen TEXT NOT NULL,
-    comision TEXT,
-    resultado TEXT,
-    fecha_ingreso DATE
+CREATE TABLE dim_comisiones (
+    comision_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nombre_comision TEXT NOT NULL UNIQUE,
+    tipo TEXT CHECK (tipo IN ('Permanente', 'Especial Investigadora', 'Bicameral'))
 );
 
--- ==========================================================
--- 2. TABLAS DE HECHOS Y RELACIONES (Registran eventos)
--- ==========================================================
 
--- Historial de militancia de los parlamentarios en partidos y coaliciones.
+-- ======================================================================
+-- MÓDULO 2: TRAYECTORIA POLÍTICA (El "Cómo llegaron aquí")
+-- ======================================================================
+-- Registra el historial, cargos y antecedentes de los parlamentarios.
+
+CREATE TABLE parlamentario_mandatos (
+    mandato_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    mp_uid INTEGER NOT NULL,
+    cargo TEXT NOT NULL CHECK (cargo IN ('Diputado', 'Senador')),
+    distrito INTEGER,
+    partido_id_mandato INTEGER,
+    fecha_inicio DATE NOT NULL,
+    fecha_fin DATE,
+    FOREIGN KEY (mp_uid) REFERENCES dim_parlamentario(mp_uid) ON DELETE CASCADE,
+    FOREIGN KEY (partido_id_mandato) REFERENCES dim_partidos(partido_id)
+);
+
 CREATE TABLE militancia_historial (
     militancia_id INTEGER PRIMARY KEY AUTOINCREMENT,
     mp_uid INTEGER NOT NULL,
     partido_id INTEGER NOT NULL,
-    coalicion_id INTEGER,
     fecha_inicio DATE,
     fecha_fin DATE,
-    FOREIGN KEY (mp_uid) REFERENCES dim_parlamentario(mp_uid),
-    FOREIGN KEY (partido_id) REFERENCES dim_partidos(partido_id),
-    FOREIGN KEY (coalicion_id) REFERENCES dim_coaliciones(coalicion_id)
+    FOREIGN KEY (mp_uid) REFERENCES dim_parlamentario(mp_uid) ON DELETE CASCADE,
+    FOREIGN KEY (partido_id) REFERENCES dim_partidos(partido_id)
 );
 
--- Autores de los proyectos de ley.
-CREATE TABLE bill_authors (
-    bill_id TEXT NOT NULL,
-    mp_uid INTEGER NOT NULL,
-    PRIMARY KEY (bill_id, mp_uid),
-    FOREIGN KEY (bill_id) REFERENCES bills(bill_id),
-    FOREIGN KEY (mp_uid) REFERENCES dim_parlamentario(mp_uid)
-);
-
--- Registro de los votos de los parlamentarios en proyectos de ley.
-CREATE TABLE votes (
-    vote_id INTEGER PRIMARY KEY AUTOINCREMENT,
-    mp_uid INTEGER NOT NULL,
-    bill_id TEXT NOT NULL,
-    voto TEXT NOT NULL,                     -- 'A Favor', 'En Contra', 'Abstención', 'Pareo'.
-    fecha DATE NOT NULL,
-    FOREIGN KEY (mp_uid) REFERENCES dim_parlamentario(mp_uid),
-    FOREIGN KEY (bill_id) REFERENCES bills(bill_id)
-);
-
--- Turnos de palabra o discursos de los parlamentarios.
-CREATE TABLE speech_turns (
-    speech_id INTEGER PRIMARY KEY AUTOINCREMENT,
-    mp_uid INTEGER NOT NULL,
-    texto TEXT NOT NULL,
-    inicio_seg REAL,
-    fin_seg REAL,
-    fecha DATE,
-    comision TEXT,
-    tema TEXT,
-    url_video TEXT,
-    FOREIGN KEY (mp_uid) REFERENCES dim_parlamentario(mp_uid)
-);
-
--- Interacciones (e.g., críticas, apoyos) entre parlamentarios.
-CREATE TABLE interactions (
-    interaction_id INTEGER PRIMARY KEY AUTOINCREMENT,
-    source_uid INTEGER NOT NULL,
-    target_uid INTEGER NOT NULL,
-    tipo TEXT NOT NULL,                     -- 'critica', 'apoya', 'menciona'.
-    fecha DATE NOT NULL,
-    fuente TEXT,
-    snippet TEXT,
-    FOREIGN KEY (source_uid) REFERENCES dim_parlamentario(mp_uid),
-    FOREIGN KEY (target_uid) REFERENCES dim_parlamentario(mp_uid)
-);
-
--- Formación académica de los parlamentarios.
-CREATE TABLE educacion (
-    edu_id INTEGER PRIMARY KEY AUTOINCREMENT,
-    mp_uid INTEGER NOT NULL,
-    titulo TEXT,
-    institucion TEXT,
-    ano_graduacion INTEGER,
-    FOREIGN KEY (mp_uid) REFERENCES dim_parlamentario(mp_uid)
-);
-
--- Membresías de los parlamentarios en comisiones.
 CREATE TABLE comision_membresias (
     membresia_id INTEGER PRIMARY KEY AUTOINCREMENT,
     mp_uid INTEGER NOT NULL,
-    nombre_comision TEXT NOT NULL,
-    rol TEXT,                               -- E.g., "Presidente", "Miembro".
+    comision_id INTEGER NOT NULL,
+    rol TEXT DEFAULT 'Miembro',
     fecha_inicio DATE,
     fecha_fin DATE,
-    FOREIGN KEY (mp_uid) REFERENCES dim_parlamentario(mp_uid)
+    FOREIGN KEY (mp_uid) REFERENCES dim_parlamentario(mp_uid) ON DELETE CASCADE,
+    FOREIGN KEY (comision_id) REFERENCES dim_comisiones(comision_id)
 );
 
--- Resultados electorales de los parlamentarios.
 CREATE TABLE electoral_results (
     result_id INTEGER PRIMARY KEY AUTOINCREMENT,
     mp_uid INTEGER NOT NULL,
@@ -163,14 +105,110 @@ CREATE TABLE electoral_results (
     cargo TEXT,
     distrito INTEGER,
     total_votos INTEGER,
+    FOREIGN KEY (mp_uid) REFERENCES dim_parlamentario(mp_uid) ON DELETE CASCADE
+);
+
+CREATE TABLE educacion (
+    edu_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    mp_uid INTEGER NOT NULL,
+    titulo TEXT,
+    institucion TEXT,
+    ano_graduacion INTEGER,
+    FOREIGN KEY (mp_uid) REFERENCES dim_parlamentario(mp_uid) ON DELETE CASCADE
+);
+
+
+-- ======================================================================
+-- MÓDULO 3: ACTIVIDAD LEGISLATIVA (El "Qué hacen")
+-- ======================================================================
+-- Registra los eventos y artefactos del proceso legislativo formal.
+
+CREATE TABLE bills (
+    bill_id TEXT PRIMARY KEY,
+    titulo TEXT NOT NULL,
+    resumen TEXT,
+    fecha_ingreso DATE,
+    etapa TEXT,
+    iniciativa TEXT,
+    origen TEXT,
+    urgencia TEXT,
+    resultado_final TEXT,
+    ley_numero TEXT,
+    ley_fecha_publicacion DATE
+);
+
+CREATE TABLE bill_authors (
+    bill_id TEXT NOT NULL,
+    mp_uid INTEGER NOT NULL,
+    PRIMARY KEY (bill_id, mp_uid),
+    FOREIGN KEY (bill_id) REFERENCES bills(bill_id) ON DELETE CASCADE,
     FOREIGN KEY (mp_uid) REFERENCES dim_parlamentario(mp_uid)
 );
 
--- ==========================================================
--- 3. ÍNDICES PARA OPTIMIZACIÓN DE CONSULTAS
--- ==========================================================
+CREATE TABLE sesiones_votacion (
+    sesion_votacion_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    bill_id TEXT NOT NULL,
+    fecha DATE NOT NULL,
+    tema TEXT,
+    resultado_general TEXT,
+    quorum_aplicado TEXT,
+    a_favor_total INTEGER,
+    en_contra_total INTEGER,
+    abstencion_total INTEGER,
+    pareo_total INTEGER,
+    FOREIGN KEY (bill_id) REFERENCES bills(bill_id) ON DELETE CASCADE
+);
 
-CREATE INDEX idx_votes_mp_bill ON votes(mp_uid, bill_id);
+CREATE TABLE votos_parlamentario (
+    voto_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    sesion_votacion_id INTEGER NOT NULL,
+    mp_uid INTEGER NOT NULL,
+    voto TEXT NOT NULL CHECK (voto IN ('A Favor', 'En Contra', 'Abstención', 'Pareo')),
+    FOREIGN KEY (sesion_votacion_id) REFERENCES sesiones_votacion(sesion_votacion_id) ON DELETE CASCADE,
+    FOREIGN KEY (mp_uid) REFERENCES dim_parlamentario(mp_uid)
+);
+
+-- ======================================================================
+-- MÓDULO 4: ACTIVIDAD PÚBLICA (El "Qué dicen")
+-- ======================================================================
+-- Captura discursos e interacciones del debate público.
+
+CREATE TABLE speech_turns (
+    speech_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    mp_uid INTEGER NOT NULL,
+    sesion_votacion_id INTEGER, -- Opcional, para vincular a una votación
+    comision_id INTEGER,        -- Opcional, para vincular a una comisión
+    texto TEXT NOT NULL,
+    fecha DATE,
+    tema TEXT,
+    url_video TEXT,
+    inicio_seg REAL,
+    fin_seg REAL,
+    FOREIGN KEY (mp_uid) REFERENCES dim_parlamentario(mp_uid),
+    FOREIGN KEY (sesion_votacion_id) REFERENCES sesiones_votacion(sesion_votacion_id),
+    FOREIGN KEY (comision_id) REFERENCES dim_comisiones(comision_id)
+);
+
+CREATE TABLE interactions (
+    interaction_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    source_uid INTEGER NOT NULL,
+    target_uid INTEGER NOT NULL,
+    tipo TEXT NOT NULL CHECK (tipo IN ('critica', 'apoya', 'menciona')),
+    fecha DATE NOT NULL,
+    fuente TEXT,
+    snippet TEXT,
+    FOREIGN KEY (source_uid) REFERENCES dim_parlamentario(mp_uid),
+    FOREIGN KEY (target_uid) REFERENCES dim_parlamentario(mp_uid)
+);
+
+-- ======================================================================
+-- MÓDULO 5: ÍNDICES PARA OPTIMIZACIÓN
+-- ======================================================================
+-- Índices para acelerar las consultas más comunes.
+
+CREATE INDEX idx_votos_parlamentario_mp_sesion ON votos_parlamentario(mp_uid, sesion_votacion_id);
 CREATE INDEX idx_speech_mp_date ON speech_turns(mp_uid, fecha);
 CREATE INDEX idx_interactions_source_target ON interactions(source_uid, target_uid);
 CREATE INDEX idx_militancia_mp ON militancia_historial(mp_uid);
+CREATE INDEX idx_mandatos_mp ON parlamentario_mandatos(mp_uid);
+CREATE INDEX idx_membresias_mp ON comision_membresias(mp_uid);
