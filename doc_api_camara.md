@@ -1,5 +1,4 @@
 
-
 # 📜 Guía de Entidades y Mapeo: API de la Cámara a Base de Datos
 
 Este documento técnico sirve como una referencia central para los desarrolladores de ETL. Describe las principales entidades de datos XML proporcionadas por los endpoints de la API de la Cámara de Diputadas y Diputados de Chile, y define su mapeo a las tablas del esquema SQL del proyecto.
