@@ -1,95 +1,111 @@
-¡Absolutamente\! Aquí tienes el documento Markdown consolidado que une toda la información. Este archivo sirve como una guía completa para los desarrolladores de tus scripts ETL, detallando el flujo de datos desde la API hasta la base de datos.
+¡Claro que sí! He preparado una documentación técnica completa y actualizada, tal como la pediste.
 
------
+Este documento consolida la definición de las entidades clave de la API del Congreso, incluyendo `Diputado`, `Legislatura`, `Proyecto de Ley` y `Votación`, y describe cómo sus datos se mapean a las tablas de tu base de datos. Esta guía será fundamental para el desarrollo de tus próximos scripts ETL.
 
-# 📜 Guía Completa de ETL: API del Congreso a Base de Datos
+---
 
-Este documento describe el proceso de extracción, transformación y carga (ETL) para poblar la base de datos del chatbot parlamentario. Detalla los scripts responsables, los endpoints de la API que consumen, la estructura de los datos XML y el mapeo final a las tablas SQL.
+# 📜 Guía de Entidades y Mapeo: API de la Cámara a Base de Datos
 
-## 📂 Script: `src/etl/etl_bills.py`
+Este documento técnico sirve como una referencia central para los desarrolladores de ETL. Describe las principales entidades de datos XML proporcionadas por los endpoints de la API de la Cámara de Diputadas y Diputados de Chile, y define su mapeo a las tablas del esquema SQL del proyecto.
 
-Este script es responsable de poblar las tablas `bills` (proyectos de ley) y `bill_authors` (autores de los proyectos).
+## 🏛️ Entidad: `Diputado`
 
-### Fase 1: Descubrimiento de Proyectos de Ley
+Un **Diputado** representa el perfil y los datos administrativos de un parlamentario. Es la entidad central del sistema, y la información enriquecida se almacena en la tabla `dim_parlamentario`.
 
-El objetivo de esta fase es obtener una lista completa de todos los `bill_id` (números de boletín) a procesar.
+* **Endpoint de Ejemplo**: `https://opendata.camara.cl/camaradiputados/pages/diputado/retornarDiputado.aspx`
+* **Tabla Destino Principal**: `dim_parlamentario`
+* **Poblado por**: `src/etl/etl_roster.py`
 
-  * **Endpoints Utilizados**:
-      * `Legislativo/retornarMocionesXAnno`
-      * `Legislativo/retornarMensajesXAnno`
-  * **Proceso**:
-    1.  El script itera a través de un rango de años definido.
-    2.  Para cada año, llama a ambos endpoints para obtener la lista de mociones (iniciativas parlamentarias) y mensajes (iniciativas del gobierno).
-    3.  De cada respuesta XML, extrae el contenido de la etiqueta `<NumeroBoletin>` de cada `<ProyectoLey>`.
-    4.  Consolida todos los `NumeroBoletin` en una lista única, que será el insumo para la siguiente fase.
+### Estructura y Mapeo: `<Diputado>`
 
-### Fase 2: Carga de Detalles del Proyecto
+| Campo XML | Tipo de Dato | Tabla Destino | Columna Destino | Lógica de Mapeo y Notas |
+| :--- | :--- | :--- | :--- | :--- |
+| `<Id>` | `integer` | `dim_parlamentario` | `diputadoid` | **Clave de cruce**. Es el identificador oficial de la Cámara. |
+| `<Nombre>` | `string` | `dim_parlamentario` | `nombre_completo` | Se concatena con los apellidos para formar el nombre completo. |
+| `<Nombre2>` | `string` | - | - | Se puede omitir o usar para enriquecer el `nombre_completo` si es necesario. |
+| `<ApellidoPaterno>`| `string` | `dim_parlamentario` | `nombre_completo` | Se concatena para formar el nombre completo. |
+| `<ApellidoMaterno>`| `string` | `dim_parlamentario` | `nombre_completo` | Se concatena para formar el nombre completo. |
+| `<FechaNacimiento>`| `dateTime` | `dim_parlamentario` | `fecha_nacimiento`| Se extrae y formatea a `YYYY-MM-DD`. Generalmente, se prefiere el dato de BCN. |
+| `<Sexo>` | `TipoSexo` | `dim_parlamentario` | `genero` | Se mapea a "Masculino" o "Femenino" según el valor del atributo. |
+| `<Militancias>` | `MilitanciasColeccion` | `militancia_historial` | (Múltiples) | Se itera sobre la colección para poblar el historial de militancias. |
+| `<RUT>`, `<RUTDV>`| `string` | - | - | Campos no utilizados actualmente en el esquema. |
+| `<FechaDefuncion>`| `dateTime` | - | - | Campo no utilizado actualmente en el esquema. |
 
-Con la lista de `bill_id`s, el script procede a obtener y guardar la información detallada de cada proyecto.
+---
 
-  * **Endpoint Utilizado**: `Legislativo/retornarProyectoLey`
-  * **Proceso**:
-    1.  El script recorre la lista de `bill_id`s.
-    2.  Para cada `bill_id`, llama al endpoint, pasando el número de boletín como parámetro.
-    3.  La respuesta XML, correspondiente al elemento `<ProyectoLey>`, se utiliza para poblar las tablas `bills` y `bill_authors` según el mapeo a continuación.
+## 🏛️ Entidad: `Legislatura` y `PeriodoLegislativo`
+
+Una **Legislatura** representa un período específico dentro del ejercicio del Congreso. El **PeriodoLegislativo** agrupa a un conjunto de legislaturas.
+
+* **Endpoints**:
+    * `.../retornarLegislaturaActual`
+    * `.../retornarPeriodoLegislativoActual`
+* **Tabla Destino Sugerida**: `dim_legislatura` (nueva tabla dimensional)
+
+### Estructura y Mapeo: `<Legislatura>`
+
+| Campo XML | Tipo de Dato | Tabla Destino | Columna Destino | Lógica de Mapeo y Notas |
+| :--- | :--- | :--- | :--- | :--- |
+| `<Id>` | `integer` | `dim_legislatura` | `legislatura_id` | **Clave Primaria** de la tabla. |
+| `<Numero>` | `integer` | `dim_legislatura` | `numero` | Número que identifica a la legislatura (ej: 368). |
+| `<FechaInicio>` | `dateTime` | `dim_legislatura` | `fecha_inicio` | Se extrae y formatea a `YYYY-MM-DD`. |
+| `<FechaTermino>` | `dateTime` | `dim_legislatura` | `fecha_termino` | Se extrae y formatea a `YYYY-MM-DD`. |
+| `<Tipo>` | `TipoLegislatura` | `dim_legislatura` | `tipo` | Define el tipo (ej: "Ordinaria"). |
+
+---
+
+## 🏛️ Entidad: `ProyectoLey`
+
+Un **Proyecto de Ley** es una iniciativa legal. Su información detallada se almacena en la tabla `bills` y la autoría en `bill_authors`.
+
+* **Endpoint de Ejemplo**: `.../retornarProyectoLey`
+* **Tablas Destino**: `bills`, `bill_authors`
+* **Poblado por**: `src/etl/etl_bills.py` (futuro)
 
 ### Estructura y Mapeo: `<ProyectoLey>`
 
-| Campo XML | Tabla Destino | Columna Destino | Lógica |
-| :--- | :--- | :--- | :--- |
-| `<NumeroBoletin>` | **`bills`** | `bill_id` | **Clave Primaria**. Se extrae directamente. |
-| `<Nombre>` | **`bills`** | `titulo` | Se extrae el título completo del proyecto. |
-| `<FechaIngreso>` | **`bills`** | `fecha_ingreso` | Se extrae y formatea a `YYYY-MM-DD`. |
-| `<TipoIniciativa>`| **`bills`** | `iniciativa` | Se extrae el texto (ej: "Moción"). |
-| `<CamaraOrigen>` | **`bills`** | `origen` | Se extrae el texto (ej: "Cámara de Diputados").|
-| `<Autores>` | **`bill_authors`**| (Múltiples) | Se itera sobre cada `<ParlamentarioAutor>`, se extrae el `<Id>` del diputado y se busca su `mp_uid` en `dim_parlamentario` para insertarlo en la columna `mp_uid`. |
+| Campo XML | Tipo de Dato | Tabla Destino | Columna Destino | Lógica de Mapeo y Notas |
+| :--- | :--- | :--- | :--- | :--- |
+| `<NumeroBoletin>` | `string` | `bills` | `bill_id` | **Clave Primaria**. Es el identificador único del proyecto. |
+| `<Nombre>` | `string` | `bills` | `titulo` | Título oficial o idea matriz del proyecto. |
+| `<FechaIngreso>` | `dateTime` | `bills` | `fecha_ingreso` | Se extrae y formatea a `YYYY-MM-DD`. |
+| `<TipoIniciativa>` | `TipoIniciativa...` | `bills` | `iniciativa` | Define si es "Moción" o "Mensaje". |
+| `<CamaraOrigen>` | `TipoCamaraOrigen` | `bills` | `origen` | Cámara donde se inició el trámite (ej: "C.D."). |
+| `<Autores>` | `Parlamentarios...` | `bill_authors` | `mp_uid` | Se itera sobre cada autor, se extrae el ID y se busca el `mp_uid` en `dim_parlamentario` para insertar la relación. |
+| `<Materias>` | `MateriasColeccion` | - | - | No utilizado actualmente. Podría mapearse a una futura tabla `bill_topics`. |
+| `<Votaciones>` | `VotacionesColeccion` | - | - | No utilizado directamente. Se usa el endpoint de votaciones por proyecto. |
+| `<Id>`, `<Adminisible>`| `integer`, `boolean`| - | - | Campos no utilizados actualmente en el esquema. |
 
------
+---
 
-## 📂 Script: `src/etl/etl_votes.py`
+## 🏛️ Entidad: `Votacion`
 
-Este script es responsable de poblar las tablas `sesiones_votacion` (resumen de cada votación) y `votos_parlamentario` (el voto individual de cada diputado).
+Una **Votación** registra el resultado de un sufragio parlamentario sobre un tema específico. La información se divide en dos tablas para mayor granularidad.
 
-### Fase 1: Descubrimiento de Votaciones
-
-El objetivo es encontrar todas las sesiones de votación asociadas a cada proyecto de ley que ya existe en nuestra base de datos.
-
-  * **Endpoint Utilizado**: `Legislativo/retornarVotacionesXProyectoLey`
-  * **Proceso**:
-    1.  El script consulta la tabla `bills` para obtener todos los `bill_id` existentes.
-    2.  Para cada `bill_id`, llama al endpoint `retornarVotacionesXProyectoLey`.
-    3.  De la respuesta XML, navega a `<Votaciones>` y, para cada `<VotacionProyectoLey>`, extrae el **`<Id>`** de la votación.
-    4.  Genera una lista de todos los IDs de votaciones a procesar.
-
-### Fase 2: Carga de Detalles de Votación
-
-Con la lista de IDs de votaciones, el script obtiene el detalle completo de cada una.
-
-  * **Endpoint Utilizado**: `Legislativo/retornarVotacionDetalle`
-  * **Proceso**:
-    1.  El script itera sobre la lista de IDs de votaciones.
-    2.  Para cada ID, llama al endpoint `retornarVotacionDetalle`.
-    3.  La respuesta XML, un elemento `<Votacion>`, se usa para una inserción en dos pasos: primero en `sesiones_votacion` y luego, con el ID generado, en `votos_parlamentario`.
+* **Endpoint de Ejemplo**: `.../retornarVotacionDetalle?prmVotacionId=23683`
+* **Tablas Destino**: `sesiones_votacion`, `votos_parlamentario`
+* **Poblado por**: `src/etl/etl_votes.py` (futuro)
 
 ### Estructura y Mapeo: `<Votacion>`
 
 #### Mapeo a la tabla `sesiones_votacion`
 
-| Campo XML | Columna Destino | Lógica |
-| :--- | :--- | :--- |
-| `<Descripcion>` | `bill_id` y `tema`| Se extrae el `NumeroBoletin` del texto para el `bill_id`. El texto completo sirve como `tema`. |
-| `<Fecha>` | `fecha` | Se extrae y formatea a `YYYY-MM-DD`. |
-| `<Resultado>` | `resultado_general`| Se extrae el texto (ej: "Aprobado"). |
-| `<Quorum>` | `quorum_aplicado` | Se extrae el texto (ej: "Quórum Simple"). |
-| `<TotalSi>` | `a_favor_total` | Se extrae el valor numérico. |
-| `<TotalNo>` | `en_contra_total` | Se extrae el valor numérico. |
-| `<TotalAbstencion>`| `abstencion_total`| Se extrae el valor numérico. |
-| `<TotalDispensado>`| `pareo_total` | Se extrae el valor numérico. |
+| Campo XML | Tipo de Dato | Columna Destino | Lógica de Mapeo y Notas |
+| :--- | :--- | :--- | :--- |
+| `<Id>` | `integer` | `sesion_votacion_id` | **Clave Primaria** de la sesión. |
+| `<Descripcion>` | `string` | `tema` y `bill_id` | El texto completo es el `tema`. Se debe **parsear el número de boletín** de este texto para obtener el `bill_id` y crear la relación. |
+| `<Fecha>` | `dateTime` | `fecha` | Se extrae y formatea a `YYYY-MM-DD`. |
+| `<Resultado>` | `TipoResultado...` | `resultado_general`| Texto del resultado (ej: "Aprobado"). |
+| `<Quorum>` | `TipoQuorum...` | `quorum_aplicado` | Texto del quórum (ej: "Quórum Simple"). |
+| `<TotalSi>` | `integer` | `a_favor_total` | Conteo de votos afirmativos. |
+| `<TotalNo>` | `integer` | `en_contra_total` | Conteo de votos negativos. |
+| `<TotalAbstencion>`| `integer` | `abstencion_total`| Conteo de abstenciones. |
+| `<TotalDispensado>`| `integer` | `pareo_total` | Conteo de dispensados o pareos. |
 
-#### Mapeo a la tabla `votos_parlamentario`
+#### Mapeo a la tabla `votos_parlamentario` (iterando sobre `<Votos>`)
 
-| Campo XML (dentro de `<Votos>`) | Columna Destino | Lógica |
+| Campo XML (en `<Votos>`) | Columna Destino | Lógica de Mapeo y Notas |
 | :--- | :--- | :--- |
-| (Clave Foránea) | `sesion_votacion_id` | Se usa el ID autoincremental generado al insertar el registro en `sesiones_votacion`. |
-| `<Diputado>/<Id>`| `mp_uid` | Se usa el ID del diputado para buscar su `mp_uid` correspondiente en la tabla `dim_parlamentario`. |
-| `<OpcionVoto>` | `voto` | Se extrae y normaliza el texto. "Afirmativo" se convierte en "A Favor" para cumplir la restricción de la tabla. |
+| (Implícito) | `sesion_votacion_id` | Se usa el `<Id>` de la votación padre como clave foránea. |
+| `<Diputado>/<Id>`| `mp_uid` | Se extrae el ID del diputado y se busca su `mp_uid` en `dim_parlamentario`. |
+| `<OpcionVoto>` | `voto` | Se extrae y **se normaliza** el texto (ej: "Afirmativo" se convierte en "A Favor"). |

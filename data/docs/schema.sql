@@ -1,17 +1,20 @@
--- ###########################################################
--- ## Esquema de Base de Datos v2.1 (Enriquecido)           ##
--- ## ----------------------------------------------------- ##
--- ## Modelo consolidado con la tabla dim_partidos expandida ##
--- ## y optimizada con datos de la BCN.                      ##
--- ###########################################################
+-- #####################################################################
+-- ## Esquema de Base de Datos v3.0 (Preparado para Crecimiento)      ##
+-- ## --------------------------------------------------------------- ##
+-- ## Modelo actualizado que alinea 'dim_parlamentario' y 'dim_partidos'
+-- ## con el script 'etl_roster.py' y expande las tablas de proyectos
+-- ## de ley y votaciones para los próximos scripts ETL.
+-- #####################################################################
 
 -- ==========================================================
 -- 1. TABLAS DE DIMENSIONES (Describen entidades)
 -- ==========================================================
 
 -- Tabla para almacenar información detallada de los parlamentarios.
+-- Poblada por: src/etl/etl_roster.py
 CREATE TABLE dim_parlamentario (
     mp_uid INTEGER PRIMARY KEY AUTOINCREMENT,
+    diputadoid TEXT UNIQUE,
     nombre_completo TEXT NOT NULL,
     nombre_propio TEXT,
     apellido_paterno TEXT,
@@ -20,9 +23,7 @@ CREATE TABLE dim_parlamentario (
     fecha_nacimiento DATE,
     lugar_nacimiento TEXT,
     distrito INTEGER,
-    fechas_mandato TEXT,
-    diputadoid TEXT UNIQUE,
-    wikidata_qid TEXT,
+    fechas_mandato TEXT, -- Campo mantenido por si se usa a futuro.
     bcn_uri TEXT,
     url_foto TEXT,
     twitter_handle TEXT,
@@ -35,79 +36,111 @@ CREATE TABLE dim_parlamentario (
 );
 
 -- Tabla para gestionar diferentes nombres o alias de un parlamentario.
+-- Poblada por: (futuro script, ej: alias_resolver.py)
 CREATE TABLE parlamentario_aliases (
     alias_id INTEGER PRIMARY KEY AUTOINCREMENT,
     mp_uid INTEGER NOT NULL,
     alias TEXT NOT NULL UNIQUE,             -- E.g., "Pepe Auth", "Diputada Jiles".
-    FOREIGN KEY (mp_uid) REFERENCES dim_parlamentario(mp_uid)
+    FOREIGN KEY (mp_uid) REFERENCES dim_parlamentario(mp_uid) ON DELETE CASCADE
 );
 
--- CAMBIO: Tabla de partidos políticos enriquecida con datos de la BCN.
+-- Tabla de partidos políticos, enriquecida con datos de la BCN.
+-- Poblada por: src/etl/etl_roster.py
 CREATE TABLE dim_partidos (
     partido_id INTEGER PRIMARY KEY AUTOINCREMENT,
     nombre_partido TEXT NOT NULL UNIQUE,
-    nombre_alternativo TEXT,                -- CAMBIO: Añadido para nombres como "Unión Demócrata Independiente".
+    nombre_alternativo TEXT,
     sigla TEXT,
-    fecha_fundacion TEXT,                   -- CAMBIO: Tipo a TEXT para manejar solo el año (ej: "1983").
+    fecha_fundacion TEXT,
     sitio_web TEXT,
-    url_historia_politica TEXT,             -- CAMBIO: Añadido para enlace a la página de historia política en BCN.
-    url_logo TEXT,                          -- CAMBIO: Añadido para URL del logo del partido.
-    ultima_actualizacion TEXT               -- CAMBIO: Añadido para la fecha de última actualización desde BCN.
+    url_historia_politica TEXT,
+    url_logo TEXT,
+    ultima_actualizacion DATETIME
 );
 
 -- Tabla para las coaliciones políticas.
+-- Poblada por: (futuro script)
 CREATE TABLE dim_coaliciones (
     coalicion_id INTEGER PRIMARY KEY AUTOINCREMENT,
     nombre_coalicion TEXT NOT NULL UNIQUE
 );
 
--- Tabla para almacenar información sobre los proyectos de ley.
+-- ----------------------------------------------------------
+-- NUEVO: Tabla de proyectos de ley enriquecida para alinearse
+-- con el futuro script 'etl_bills.py'.
+-- ----------------------------------------------------------
 CREATE TABLE bills (
-    bill_id TEXT PRIMARY KEY,               -- E.g., "15665-07".
-    resumen TEXT NOT NULL,
-    comision TEXT,
-    resultado TEXT,
-    fecha_ingreso DATE
+    bill_id TEXT PRIMARY KEY,               -- E.g., "15665-07", extraído de <NumeroBoletin>
+    titulo TEXT,                            -- Extraído de <Nombre>
+    fecha_ingreso DATE,                     -- Extraído de <FechaIngreso>
+    iniciativa TEXT,                        -- 'Moción' o 'Mensaje', extraído de <TipoIniciativa>
+    origen TEXT,                            -- 'C.D.' o 'Senado', extraído de <CamaraOrigen>
+    estado_actual TEXT,                     -- Para poblar a futuro.
+    url_detalle TEXT                        -- Para poblar a futuro con la URL a la ficha del proyecto.
 );
+
 
 -- ==========================================================
 -- 2. TABLAS DE HECHOS Y RELACIONES (Registran eventos)
 -- ==========================================================
 
--- Historial de militancia de los parlamentarios en partidos y coaliciones.
+-- Historial de militancia de los parlamentarios en partidos.
+-- Poblada por: src/etl/etl_roster.py
 CREATE TABLE militancia_historial (
     militancia_id INTEGER PRIMARY KEY AUTOINCREMENT,
     mp_uid INTEGER NOT NULL,
     partido_id INTEGER NOT NULL,
-    coalicion_id INTEGER,
+    coalicion_id INTEGER,                   -- No poblado por el script de roster actual.
     fecha_inicio DATE,
     fecha_fin DATE,
-    FOREIGN KEY (mp_uid) REFERENCES dim_parlamentario(mp_uid),
-    FOREIGN KEY (partido_id) REFERENCES dim_partidos(partido_id),
-    FOREIGN KEY (coalicion_id) REFERENCES dim_coaliciones(coalicion_id)
+    FOREIGN KEY (mp_uid) REFERENCES dim_parlamentario(mp_uid) ON DELETE CASCADE,
+    FOREIGN KEY (partido_id) REFERENCES dim_partidos(partido_id) ON DELETE CASCADE
 );
 
 -- Autores de los proyectos de ley.
+-- Poblada por: src/etl/etl_bills.py (futuro)
 CREATE TABLE bill_authors (
     bill_id TEXT NOT NULL,
     mp_uid INTEGER NOT NULL,
     PRIMARY KEY (bill_id, mp_uid),
-    FOREIGN KEY (bill_id) REFERENCES bills(bill_id),
-    FOREIGN KEY (mp_uid) REFERENCES dim_parlamentario(mp_uid)
+    FOREIGN KEY (bill_id) REFERENCES bills(bill_id) ON DELETE CASCADE,
+    FOREIGN KEY (mp_uid) REFERENCES dim_parlamentario(mp_uid) ON DELETE CASCADE
 );
 
--- Registro de los votos de los parlamentarios en proyectos de ley.
-CREATE TABLE votes (
-    vote_id INTEGER PRIMARY KEY AUTOINCREMENT,
-    mp_uid INTEGER NOT NULL,
-    bill_id TEXT NOT NULL,
-    voto TEXT NOT NULL,                     -- 'A Favor', 'En Contra', 'Abstención', 'Pareo'.
+-- ----------------------------------------------------------
+-- NUEVO: Estructura de votaciones dividida en dos tablas para
+-- reflejar la granularidad de la API y el script 'etl_votes.py'.
+-- ----------------------------------------------------------
+
+-- Tabla para las sesiones de votación. Almacena la información general del evento.
+-- Poblada por: src/etl/etl_votes.py (futuro)
+CREATE TABLE sesiones_votacion (
+    sesion_votacion_id INTEGER PRIMARY KEY, -- ID de la votación desde la API (<Id>).
+    bill_id TEXT,
+    tema TEXT NOT NULL,                     -- La descripción completa del asunto votado.
     fecha DATE NOT NULL,
-    FOREIGN KEY (mp_uid) REFERENCES dim_parlamentario(mp_uid),
-    FOREIGN KEY (bill_id) REFERENCES bills(bill_id)
+    resultado_general TEXT,                 -- 'Aprobado', 'Rechazado'.
+    quorum_aplicado TEXT,                   -- 'Quórum Simple', '3/5', etc.
+    a_favor_total INTEGER,
+    en_contra_total INTEGER,
+    abstencion_total INTEGER,
+    pareo_total INTEGER,
+    FOREIGN KEY (bill_id) REFERENCES bills(bill_id) ON DELETE CASCADE
+);
+
+-- Tabla para el voto individual de cada parlamentario por sesión.
+-- Poblada por: src/etl/etl_votes.py (futuro)
+CREATE TABLE votos_parlamentario (
+    voto_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    sesion_votacion_id INTEGER NOT NULL,
+    mp_uid INTEGER NOT NULL,
+    voto TEXT NOT NULL,                     -- 'A Favor', 'En Contra', 'Abstención', 'Pareo'.
+    FOREIGN KEY (sesion_votacion_id) REFERENCES sesiones_votacion(sesion_votacion_id) ON DELETE CASCADE,
+    FOREIGN KEY (mp_uid) REFERENCES dim_parlamentario(mp_uid) ON DELETE CASCADE
 );
 
 -- Turnos de palabra o discursos de los parlamentarios.
+-- Poblada por: src/etl/etl_transcripts.py (futuro)
 CREATE TABLE speech_turns (
     speech_id INTEGER PRIMARY KEY AUTOINCREMENT,
     mp_uid INTEGER NOT NULL,
@@ -118,10 +151,11 @@ CREATE TABLE speech_turns (
     comision TEXT,
     tema TEXT,
     url_video TEXT,
-    FOREIGN KEY (mp_uid) REFERENCES dim_parlamentario(mp_uid)
+    FOREIGN KEY (mp_uid) REFERENCES dim_parlamentario(mp_uid) ON DELETE CASCADE
 );
 
 -- Interacciones (e.g., críticas, apoyos) entre parlamentarios.
+-- Poblada por: src/etl/etl_news_graph.py (futuro)
 CREATE TABLE interactions (
     interaction_id INTEGER PRIMARY KEY AUTOINCREMENT,
     source_uid INTEGER NOT NULL,
@@ -130,18 +164,8 @@ CREATE TABLE interactions (
     fecha DATE NOT NULL,
     fuente TEXT,
     snippet TEXT,
-    FOREIGN KEY (source_uid) REFERENCES dim_parlamentario(mp_uid),
-    FOREIGN KEY (target_uid) REFERENCES dim_parlamentario(mp_uid)
-);
-
--- Formación académica de los parlamentarios.
-CREATE TABLE educacion (
-    edu_id INTEGER PRIMARY KEY AUTOINCREMENT,
-    mp_uid INTEGER NOT NULL,
-    titulo TEXT,
-    institucion TEXT,
-    ano_graduacion INTEGER,
-    FOREIGN KEY (mp_uid) REFERENCES dim_parlamentario(mp_uid)
+    FOREIGN KEY (source_uid) REFERENCES dim_parlamentario(mp_uid) ON DELETE CASCADE,
+    FOREIGN KEY (target_uid) REFERENCES dim_parlamentario(mp_uid) ON DELETE CASCADE
 );
 
 -- Membresías de los parlamentarios en comisiones.
@@ -152,7 +176,7 @@ CREATE TABLE comision_membresias (
     rol TEXT,                               -- E.g., "Presidente", "Miembro".
     fecha_inicio DATE,
     fecha_fin DATE,
-    FOREIGN KEY (mp_uid) REFERENCES dim_parlamentario(mp_uid)
+    FOREIGN KEY (mp_uid) REFERENCES dim_parlamentario(mp_uid) ON DELETE CASCADE
 );
 
 -- Resultados electorales de los parlamentarios.
@@ -163,14 +187,20 @@ CREATE TABLE electoral_results (
     cargo TEXT,
     distrito INTEGER,
     total_votos INTEGER,
-    FOREIGN KEY (mp_uid) REFERENCES dim_parlamentario(mp_uid)
+    FOREIGN KEY (mp_uid) REFERENCES dim_parlamentario(mp_uid) ON DELETE CASCADE
 );
+
 
 -- ==========================================================
 -- 3. ÍNDICES PARA OPTIMIZACIÓN DE CONSULTAS
 -- ==========================================================
 
-CREATE INDEX idx_votes_mp_bill ON votes(mp_uid, bill_id);
-CREATE INDEX idx_speech_mp_date ON speech_turns(mp_uid, fecha);
-CREATE INDEX idx_interactions_source_target ON interactions(source_uid, target_uid);
-CREATE INDEX idx_militancia_mp ON militancia_historial(mp_uid);
+-- Índices para las nuevas tablas de votaciones
+CREATE INDEX IF NOT EXISTS idx_sesiones_votacion_bill_id ON sesiones_votacion(bill_id);
+CREATE INDEX IF NOT EXISTS idx_votos_parlamentario_sesion_mp ON votos_parlamentario(sesion_votacion_id, mp_uid);
+
+-- Otros índices
+CREATE INDEX IF NOT EXISTS idx_militancia_mp ON militancia_historial(mp_uid);
+CREATE INDEX IF NOT EXISTS idx_speech_mp_date ON speech_turns(mp_uid, fecha);
+CREATE INDEX IF NOT EXISTS idx_interactions_source_target ON interactions(source_uid, target_uid);
+CREATE INDEX IF NOT EXISTS idx_bill_authors_bill_id ON bill_authors(bill_id);
