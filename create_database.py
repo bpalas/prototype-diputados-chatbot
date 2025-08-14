@@ -10,7 +10,7 @@ DB_DIRECTORY = os.path.join(PROJECT_ROOT, 'data', 'database')
 DB_PATH = os.path.join(DB_DIRECTORY, 'parlamento.db')
 
 # Ruta al archivo que contiene el esquema SQL
-SCHEMA_PATH = os.path.join(PROJECT_ROOT, 'data', 'docs', 'schema.sql') # Ajusta si tu schema está en otra parte
+SCHEMA_PATH = os.path.join(PROJECT_ROOT, 'data', 'docs', 'schema.sql')
 
 def create_database_from_schema():
     """

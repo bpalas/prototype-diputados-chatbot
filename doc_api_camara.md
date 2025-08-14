@@ -1,8 +1,3 @@
-¡Claro que sí! He preparado una documentación técnica completa y actualizada, tal como la pediste.
-
-Este documento consolida la definición de las entidades clave de la API del Congreso, incluyendo `Diputado`, `Legislatura`, `Proyecto de Ley` y `Votación`, y describe cómo sus datos se mapean a las tablas de tu base de datos. Esta guía será fundamental para el desarrollo de tus próximos scripts ETL.
-
----
 
 # 📜 Guía de Entidades y Mapeo: API de la Cámara a Base de Datos
 
