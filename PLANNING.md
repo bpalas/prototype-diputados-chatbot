@@ -32,7 +32,14 @@ Este documento detalla la planificación y el seguimiento del desarrollo del pro
 
 ### Martes (12-08)
 - Finalizar el script `etl_roster.py` para poblar la tabla `dim_parlamentario` con biografías y distritos.
-- Comenzar el desarrollo de `etl_votes.py` para poblar las tablas `votes` y `bills`.
+- Comenzar el desarrollo de `etl_votes.py` para poblar las tablas:
+
+1.  🏛️ **`bills`**: Esta es la tabla principal para este ETL. Debes llenarla primero. Almacena la información de cada proyecto de ley, como su identificador (`bill_id`), resumen y estado.
+2.  ✍️ **`bill_authors`**: Inmediatamente después de registrar un proyecto en `bills`, debes poblar esta tabla. Vincula cada `bill_id` con los `mp_uid` de los parlamentarios que lo propusieron. Es una tabla de relación clave para entender quién impulsa cada iniciativa.
+3.  🗳️ **`votes`**: Finalmente, esta tabla registrará cada voto individual. Se conectará con `dim_parlamentario` a través de `mp_uid` y con `bills` a través de `bill_id`, registrando la decisión del parlamentario ('A Favor', 'En Contra', etc.) y la fecha.
+
+`etl_votes.py` maneja exclusivamente la lógica de proyectos de ley y votaciones.
+
 
 ### Miércoles (13-08)
 - Terminar el script `etl_votes.py`.

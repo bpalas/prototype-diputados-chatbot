@@ -91,3 +91,5 @@ Estos scripts son responsables de la recolección y procesamiento de los datos:
 ### Módulo de Normalización (`src/core/`)
 
   * `alias_resolver.py`: Este es un componente crítico que implementa la lógica para resolver diferentes variantes de nombres de un parlamentario (ej. "Juan Pérez", "diputado Pérez", "J. Pérez") y mapearlas a un único `mp_uid`. Se requiere que este módulo alcance una alta precisión para asegurar la calidad de los datos unificados. Su rendimiento se valida mediante las pruebas en `tests/test_alias_resolver.py`.
+
+
