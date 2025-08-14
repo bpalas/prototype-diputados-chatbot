@@ -1,0 +1,391 @@
+<ArrayOfPeriodoLegislativo xmlns="http://opendata.camara.cl/camaradiputados/v1">
+    <PeriodoLegislativo>
+        <Legislaturas>
+            <Legislatura>
+                <Id>3</Id>
+                <Numero>319</Numero>
+                <FechaInicio>1990-03-11T00:00:00</FechaInicio>
+                <FechaTermino>1990-05-20T23:59:59</FechaTermino>
+                <Tipo Valor="2">Extraordinaria</Tipo>
+            </Legislatura>
+            <Legislatura>
+                <Id>4</Id>
+                <Numero>320</Numero>
+                <FechaInicio>1990-05-21T00:00:00</FechaInicio>
+                <FechaTermino>1990-09-17T23:59:59</FechaTermino>
+                <Tipo Valor="1">Ordinaria</Tipo>
+            </Legislatura>
+            <Legislatura>
+                <Id>5</Id>
+                <Numero>321</Numero>
+                <FechaInicio>1990-09-18T00:00:00</FechaInicio>
+                <FechaTermino>1991-05-20T23:59:59</FechaTermino>
+                <Tipo Valor="2">Extraordinaria</Tipo>
+            </Legislatura>
+            <Legislatura>
+                <Id>6</Id>
+                <Numero>322</Numero>
+                <FechaInicio>1991-05-21T00:00:00</FechaInicio>
+                <FechaTermino>1991-09-17T23:59:59</FechaTermino>
+                <Tipo Valor="1">Ordinaria</Tipo>
+            </Legislatura>
+            <Legislatura>
+                <Id>7</Id>
+                <Numero>323</Numero>
+                <FechaInicio>1991-09-18T00:00:00</FechaInicio>
+                <FechaTermino>1992-05-20T23:59:59</FechaTermino>
+                <Tipo Valor="2">Extraordinaria</Tipo>
+            </Legislatura>
+            <Legislatura>
+                <Id>8</Id>
+                <Numero>324</Numero>
+                <FechaInicio>1992-05-21T00:00:00</FechaInicio>
+                <FechaTermino>1992-09-17T23:59:59</FechaTermino>
+                <Tipo Valor="1">Ordinaria</Tipo>
+            </Legislatura>
+            <Legislatura>
+                <Id>9</Id>
+                <Numero>325</Numero>
+                <FechaInicio>1992-09-18T00:00:00</FechaInicio>
+                <FechaTermino>1993-05-20T23:59:59</FechaTermino>
+                <Tipo Valor="2">Extraordinaria</Tipo>
+            </Legislatura>
+            <Legislatura>
+                <Id>10</Id>
+                <Numero>326</Numero>
+                <FechaInicio>1993-05-21T00:00:00</FechaInicio>
+                <FechaTermino>1993-09-17T23:59:59</FechaTermino>
+                <Tipo Valor="1">Ordinaria</Tipo>
+            </Legislatura>
+            <Legislatura>
+                <Id>11</Id>
+                <Numero>327</Numero>
+                <FechaInicio>1993-09-18T00:00:00</FechaInicio>
+                <FechaTermino>1994-03-10T23:59:59</FechaTermino>
+                <Tipo Valor="2">Extraordinaria</Tipo>
+            </Legislatura>
+            <Legislatura>
+                <Id>12</Id>
+                <Numero>328</Numero>
+                <FechaInicio>1994-03-11T00:00:00</FechaInicio>
+                <FechaTermino>1994-05-20T23:59:59</FechaTermino>
+                <Tipo Valor="2">Extraordinaria</Tipo>
+            </Legislatura>
+            <Legislatura>
+                <Id>13</Id>
+                <Numero>329</Numero>
+                <FechaInicio>1994-05-21T00:00:00</FechaInicio>
+                <FechaTermino>1994-09-17T23:59:59</FechaTermino>
+                <Tipo Valor="1">Ordinaria</Tipo>
+            </Legislatura>
+            <Legislatura>
+                <Id>14</Id>
+                <Numero>330</Numero>
+                <FechaInicio>1994-09-18T00:00:00</FechaInicio>
+                <FechaTermino>1995-05-20T23:59:59</FechaTermino>
+                <Tipo Valor="2">Extraordinaria</Tipo>
+            </Legislatura>
+            <Legislatura>
+                <Id>15</Id>
+                <Numero>331</Numero>
+                <FechaInicio>1995-05-21T00:00:00</FechaInicio>
+                <FechaTermino>1995-09-17T23:59:59</FechaTermino>
+                <Tipo Valor="1">Ordinaria</Tipo>
+            </Legislatura>
+            <Legislatura>
+                <Id>16</Id>
+                <Numero>332</Numero>
+                <FechaInicio>1995-09-18T00:00:00</FechaInicio>
+                <FechaTermino>1996-05-20T23:59:59</FechaTermino>
+                <Tipo Valor="2">Extraordinaria</Tipo>
+            </Legislatura>
+            <Legislatura>
+                <Id>17</Id>
+                <Numero>333</Numero>
+                <FechaInicio>1996-05-21T00:00:00</FechaInicio>
+                <FechaTermino>1996-09-17T23:59:59</FechaTermino>
+                <Tipo Valor="1">Ordinaria</Tipo>
+            </Legislatura>
+            <Legislatura>
+                <Id>18</Id>
+                <Numero>334</Numero>
+                <FechaInicio>1996-09-18T00:00:00</FechaInicio>
+                <FechaTermino>1997-05-20T23:59:59</FechaTermino>
+                <Tipo Valor="2">Extraordinaria</Tipo>
+            </Legislatura>
+            <Legislatura>
+                <Id>19</Id>
+                <Numero>335</Numero>
+                <FechaInicio>1997-05-21T00:00:00</FechaInicio>
+                <FechaTermino>1997-09-17T23:59:59</FechaTermino>
+                <Tipo Valor="1">Ordinaria</Tipo>
+            </Legislatura>
+            <Legislatura>
+                <Id>20</Id>
+                <Numero>336</Numero>
+                <FechaInicio>1997-09-18T00:00:00</FechaInicio>
+                <FechaTermino>1998-03-10T23:59:59</FechaTermino>
+                <Tipo Valor="2">Extraordinaria</Tipo>
+            </Legislatura>
+            <Legislatura>
+                <Id>21</Id>
+                <Numero>337</Numero>
+                <FechaInicio>1998-03-11T00:00:00</FechaInicio>
+                <FechaTermino>1998-05-20T23:59:59</FechaTermino>
+                <Tipo Valor="2">Extraordinaria</Tipo>
+            </Legislatura>
+            <Legislatura>
+                <Id>22</Id>
+                <Numero>338</Numero>
+                <FechaInicio>1998-05-21T00:00:00</FechaInicio>
+                <FechaTermino>1998-09-17T23:59:59</FechaTermino>
+                <Tipo Valor="1">Ordinaria</Tipo>
+            </Legislatura>
+            <Legislatura>
+                <Id>23</Id>
+                <Numero>339</Numero>
+                <FechaInicio>1998-09-18T00:00:00</FechaInicio>
+                <FechaTermino>1999-05-20T23:59:59</FechaTermino>
+                <Tipo Valor="2">Extraordinaria</Tipo>
+            </Legislatura>
+            <Legislatura>
+                <Id>24</Id>
+                <Numero>340</Numero>
+                <FechaInicio>1999-05-21T00:00:00</FechaInicio>
+                <FechaTermino>1999-09-17T23:59:59</FechaTermino>
+                <Tipo Valor="1">Ordinaria</Tipo>
+            </Legislatura>
+            <Legislatura>
+                <Id>25</Id>
+                <Numero>341</Numero>
+                <FechaInicio>1999-09-18T00:00:00</FechaInicio>
+                <FechaTermino>2000-05-20T23:59:59</FechaTermino>
+                <Tipo Valor="2">Extraordinaria</Tipo>
+            </Legislatura>
+            <Legislatura>
+                <Id>26</Id>
+                <Numero>342</Numero>
+                <FechaInicio>2000-05-21T00:00:00</FechaInicio>
+                <FechaTermino>2000-09-17T23:59:59</FechaTermino>
+                <Tipo Valor="1">Ordinaria</Tipo>
+            </Legislatura>
+            <Legislatura>
+                <Id>27</Id>
+                <Numero>343</Numero>
+                <FechaInicio>2000-09-18T00:00:00</FechaInicio>
+                <FechaTermino>2001-05-20T23:59:59</FechaTermino>
+                <Tipo Valor="2">Extraordinaria</Tipo>
+            </Legislatura>
+            <Legislatura>
+                <Id>28</Id>
+                <Numero>344</Numero>
+                <FechaInicio>2001-05-21T00:00:00</FechaInicio>
+                <FechaTermino>2001-09-17T23:59:59</FechaTermino>
+                <Tipo Valor="1">Ordinaria</Tipo>
+            </Legislatura>
+            <Legislatura>
+                <Id>29</Id>
+                <Numero>345</Numero>
+                <FechaInicio>2001-09-18T00:00:00</FechaInicio>
+                <FechaTermino>2002-03-10T23:59:59</FechaTermino>
+                <Tipo Valor="2">Extraordinaria</Tipo>
+            </Legislatura>
+            <Legislatura>
+                <Id>30</Id>
+                <Numero>346</Numero>
+                <FechaInicio>2002-03-11T00:00:00</FechaInicio>
+                <FechaTermino>2002-05-20T23:59:00</FechaTermino>
+                <Tipo Valor="1">Ordinaria</Tipo>
+            </Legislatura>
+            <Legislatura>
+                <Id>31</Id>
+                <Numero>347</Numero>
+                <FechaInicio>2002-05-21T00:00:00</FechaInicio>
+                <FechaTermino>2002-09-17T23:59:00</FechaTermino>
+                <Tipo Valor="1">Ordinaria</Tipo>
+            </Legislatura>
+            <Legislatura>
+                <Id>32</Id>
+                <Numero>348</Numero>
+                <FechaInicio>2002-09-18T00:00:00</FechaInicio>
+                <FechaTermino>2003-05-20T23:59:00</FechaTermino>
+                <Tipo Valor="2">Extraordinaria</Tipo>
+            </Legislatura>
+            <Legislatura>
+                <Id>33</Id>
+                <Numero>349</Numero>
+                <FechaInicio>2003-05-21T00:00:00</FechaInicio>
+                <FechaTermino>2003-09-17T23:59:00</FechaTermino>
+                <Tipo Valor="1">Ordinaria</Tipo>
+            </Legislatura>
+            <Legislatura>
+                <Id>34</Id>
+                <Numero>350</Numero>
+                <FechaInicio>2003-09-18T00:00:00</FechaInicio>
+                <FechaTermino>2004-05-20T23:59:00</FechaTermino>
+                <Tipo Valor="2">Extraordinaria</Tipo>
+            </Legislatura>
+            <Legislatura>
+                <Id>35</Id>
+                <Numero>351</Numero>
+                <FechaInicio>2004-05-21T00:00:00</FechaInicio>
+                <FechaTermino>2004-09-17T23:59:00</FechaTermino>
+                <Tipo Valor="1">Ordinaria</Tipo>
+            </Legislatura>
+            <Legislatura>
+                <Id>36</Id>
+                <Numero>352</Numero>
+                <FechaInicio>2004-09-18T00:00:00</FechaInicio>
+                <FechaTermino>2005-05-20T23:59:00</FechaTermino>
+                <Tipo Valor="2">Extraordinaria</Tipo>
+            </Legislatura>
+            <Legislatura>
+                <Id>37</Id>
+                <Numero>353</Numero>
+                <FechaInicio>2005-05-21T00:00:00</FechaInicio>
+                <FechaTermino>2006-03-10T23:59:00</FechaTermino>
+                <Tipo Valor="1">Ordinaria</Tipo>
+            </Legislatura>
+            <Legislatura>
+                <Id>38</Id>
+                <Numero>354</Numero>
+                <FechaInicio>2006-03-11T00:00:00</FechaInicio>
+                <FechaTermino>2007-03-10T23:59:00</FechaTermino>
+                <Tipo Valor="3">-</Tipo>
+            </Legislatura>
+            <Legislatura>
+                <Id>39</Id>
+                <Numero>355</Numero>
+                <FechaInicio>2007-03-11T00:00:00</FechaInicio>
+                <FechaTermino>2008-03-10T23:59:00</FechaTermino>
+                <Tipo Valor="3">-</Tipo>
+            </Legislatura>
+            <Legislatura>
+                <Id>40</Id>
+                <Numero>356</Numero>
+                <FechaInicio>2008-03-11T00:00:00</FechaInicio>
+                <FechaTermino>2009-03-10T23:59:00</FechaTermino>
+                <Tipo Valor="3">-</Tipo>
+            </Legislatura>
+            <Legislatura>
+                <Id>41</Id>
+                <Numero>357</Numero>
+                <FechaInicio>2009-03-11T00:00:00</FechaInicio>
+                <FechaTermino>2010-03-10T23:59:00</FechaTermino>
+                <Tipo Valor="3">-</Tipo>
+            </Legislatura>
+            <Legislatura>
+                <Id>42</Id>
+                <Numero>358</Numero>
+                <FechaInicio>2010-03-11T00:00:00</FechaInicio>
+                <FechaTermino>2011-03-10T23:59:00</FechaTermino>
+                <Tipo Valor="3">-</Tipo>
+            </Legislatura>
+            <Legislatura>
+                <Id>43</Id>
+                <Numero>359</Numero>
+                <FechaInicio>2011-03-11T00:00:00</FechaInicio>
+                <FechaTermino>2012-03-10T23:59:00</FechaTermino>
+                <Tipo Valor="3">-</Tipo>
+            </Legislatura>
+            <Legislatura>
+                <Id>44</Id>
+                <Numero>360</Numero>
+                <FechaInicio>2012-03-11T00:00:00</FechaInicio>
+                <FechaTermino>2013-03-10T23:59:00</FechaTermino>
+                <Tipo Valor="3">-</Tipo>
+            </Legislatura>
+            <Legislatura>
+                <Id>45</Id>
+                <Numero>361</Numero>
+                <FechaInicio>2013-03-11T00:00:00</FechaInicio>
+                <FechaTermino>2014-03-11T12:00:00</FechaTermino>
+                <Tipo Valor="3">-</Tipo>
+            </Legislatura>
+            <Legislatura>
+                <Id>46</Id>
+                <Numero>362</Numero>
+                <FechaInicio>2014-03-11T00:00:00</FechaInicio>
+                <FechaTermino>2015-03-10T23:59:00</FechaTermino>
+                <Tipo Valor="3">-</Tipo>
+            </Legislatura>
+            <Legislatura>
+                <Id>47</Id>
+                <Numero>363</Numero>
+                <FechaInicio>2015-03-11T00:00:00</FechaInicio>
+                <FechaTermino>2016-03-10T23:59:00</FechaTermino>
+                <Tipo Valor="3">-</Tipo>
+            </Legislatura>
+            <Legislatura>
+                <Id>48</Id>
+                <Numero>364</Numero>
+                <FechaInicio>2016-03-11T00:00:00</FechaInicio>
+                <FechaTermino>2017-03-10T23:59:00</FechaTermino>
+                <Tipo Valor="3">-</Tipo>
+            </Legislatura>
+            <Legislatura>
+                <Id>49</Id>
+                <Numero>365</Numero>
+                <FechaInicio>2017-03-11T00:00:00</FechaInicio>
+                <FechaTermino>2018-03-10T23:59:00</FechaTermino>
+                <Tipo Valor="3">-</Tipo>
+            </Legislatura>
+            <Legislatura>
+                <Id>50</Id>
+                <Numero>366</Numero>
+                <FechaInicio>2018-03-11T00:00:00</FechaInicio>
+                <FechaTermino>2019-03-10T23:59:59</FechaTermino>
+                <Tipo Valor="3">-</Tipo>
+            </Legislatura>
+            <Legislatura>
+                <Id>51</Id>
+                <Numero>367</Numero>
+                <FechaInicio>2019-03-11T00:00:00</FechaInicio>
+                <FechaTermino>2020-03-10T23:59:59</FechaTermino>
+                <Tipo Valor="3">-</Tipo>
+            </Legislatura>
+            <Legislatura>
+                <Id>52</Id>
+                <Numero>368</Numero>
+                <FechaInicio>2020-03-11T00:00:00</FechaInicio>
+                <FechaTermino>2021-03-10T23:59:59</FechaTermino>
+                <Tipo Valor="3">-</Tipo>
+            </Legislatura>
+            <Legislatura>
+                <Id>53</Id>
+                <Numero>369</Numero>
+                <FechaInicio>2021-03-11T00:00:00</FechaInicio>
+                <FechaTermino>2022-03-10T23:59:59</FechaTermino>
+                <Tipo Valor="3">-</Tipo>
+            </Legislatura>
+            <Legislatura>
+                <Id>54</Id>
+                <Numero>370</Numero>
+                <FechaInicio>2022-03-11T00:00:00</FechaInicio>
+                <FechaTermino>2023-03-10T23:59:59</FechaTermino>
+                <Tipo Valor="3">-</Tipo>
+            </Legislatura>
+            <Legislatura>
+                <Id>55</Id>
+                <Numero>371</Numero>
+                <FechaInicio>2023-03-11T00:00:00</FechaInicio>
+                <FechaTermino>2024-03-10T23:59:59</FechaTermino>
+                <Tipo Valor="3">-</Tipo>
+            </Legislatura>
+            <Legislatura>
+                <Id>56</Id>
+                <Numero>372</Numero>
+                <FechaInicio>2024-03-11T00:00:00</FechaInicio>
+                <FechaTermino>2025-03-10T23:59:59</FechaTermino>
+                <Tipo Valor="3">-</Tipo>
+            </Legislatura>
+            <Legislatura>
+                <Id>57</Id>
+                <Numero>373</Numero>
+                <FechaInicio>2025-03-11T00:00:00</FechaInicio>
+                <FechaTermino>2026-03-10T23:59:59</FechaTermino>
+                <Tipo Valor="3">-</Tipo>
+            </Legislatura>
+        </Legislaturas>
+    </PeriodoLegislativo>
+</ArrayOfPeriodoLegislativo>

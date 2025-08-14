@@ -1,8 +1,9 @@
 -- ######################################################################
--- ## Esquema de Base de Datos v3.0 (Modular y Mejorado)               ##
+-- ## Esquema de Base de Datos v3.1 (Modular y Mejorado)               ##
 -- ## ---------------------------------------------------------------- ##
 -- ## Modelo optimizado para análisis y RAG, organizado en módulos     ##
 -- ## lógicos para mayor claridad y escalabilidad.                     ##
+-- ## v3.1: Añade la tabla dim_legislatura.                            ##
 -- ######################################################################
 
 -- ======================================================================
@@ -57,6 +58,15 @@ CREATE TABLE dim_comisiones (
     comision_id INTEGER PRIMARY KEY AUTOINCREMENT,
     nombre_comision TEXT NOT NULL UNIQUE,
     tipo TEXT CHECK (tipo IN ('Permanente', 'Especial Investigadora', 'Bicameral'))
+);
+
+-- NUEVA TABLA: Basada en la documentación doc_api_camara.md
+CREATE TABLE dim_legislatura (
+    legislatura_id INTEGER PRIMARY KEY,
+    numero INTEGER,
+    fecha_inicio DATE,
+    fecha_termino DATE,
+    tipo TEXT -- Ejemplo: 'Ordinaria'
 );
 
 
