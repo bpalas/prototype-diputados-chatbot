@@ -7,7 +7,7 @@ Módulo ETL para Votaciones Parlamentarias v2.0
 Este script implementa el proceso de Extracción, Transformación y Carga para poblar
 las tablas `sesiones_votacion` y `votos_parlamentario`.
 
-NUEVO: Implementa un sistema de caché local para los XML de los detalles de votación,
+Implementa un sistema de caché local para los XML de los detalles de votación,
 evitando llamadas repetidas a la API y acelerando la re-ejecución.
 """
 
@@ -21,35 +21,25 @@ import re
 # --- 1. CONFIGURACIÓN Y RUTAS DEL PROYETO ---
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 DB_PATH = os.path.join(PROJECT_ROOT, 'data', 'database', 'parlamento.db')
-XML_VOTES_PATH = os.path.join(PROJECT_ROOT, 'data', 'xml', 'votes') # Directorio para guardar XMLs de votaciones
+# Directorio para guardar XMLs de votaciones (caché)
+XML_VOTES_PATH = os.path.join(PROJECT_ROOT, 'data', 'xml')
 NS = {'v1': 'http://opendata.camara.cl/camaradiputados/v1'}
 
-# --- ================================================= ---
-# --- CONFIGURACIÓN DE PRUEBA (AJUSTA ESTOS VALORES) ---
-# --- ================================================= ---
-TEST_MODE = True      # Poner en False para ejecutar el ETL completo
-TEST_BILL_LIMIT = 5   # Limita el número de proyectos de ley a procesar
-# --- ================================================= ---
 
 # --- 2. FASE DE EXTRACCIÓN Y TRANSFORMACIÓN ---
 
 def get_bill_ids_from_db(conn):
     """
-    Obtiene los `bill_id` de la tabla local `bills`. En modo de prueba, aplica un límite.
+    Obtiene todos los `bill_id` de la tabla local `bills`.
     """
     print("📋 [VOTES ETL] Obteniendo lista de proyectos de ley desde la base de datos local...")
     cursor = conn.cursor()
     query = "SELECT bill_id FROM bills ORDER BY fecha_ingreso DESC"
-    if TEST_MODE:
-        query += f" LIMIT {TEST_BILL_LIMIT}"
     
     cursor.execute(query)
     bill_ids = [row[0] for row in cursor.fetchall()]
     
-    if TEST_MODE:
-        print(f"✔️  [VOTES ETL] MODO PRUEBA: Se procesarán {len(bill_ids)} proyectos.")
-    else:
-        print(f"✔️  [VOTES ETL] Se encontraron {len(bill_ids)} proyectos para procesar.")
+    print(f"✔️  [VOTES ETL] Se encontraron {len(bill_ids)} proyectos para procesar.")
     return bill_ids
 
 def fetch_vote_ids_for_bill(bill_id):
@@ -125,9 +115,10 @@ def process_and_load_vote_details(vote_id, conn):
             response = requests.get(url, timeout=60)
             response.raise_for_status()
             xml_content = response.content
+            # Guardar el contenido en el directorio de caché
             with open(xml_file_path, 'wb') as f:
                 f.write(xml_content)
-            print(f"        -> XML de votación {vote_id} guardado en caché.")
+            print(f"         -> XML de votación {vote_id} guardado en caché.")
             time.sleep(0.2) # Pausa cortés al usar la API
         except requests.exceptions.RequestException as e:
             print(f"     ❌ Error de red para la votación {vote_id}: {e}")
@@ -144,7 +135,7 @@ def process_and_load_vote_details(vote_id, conn):
         descripcion = root.findtext('v1:Descripcion', namespaces=NS)
         bill_id = parse_bill_id_from_description(descripcion)
         if not bill_id:
-            print(f"        ⚠️  Advertencia: No se pudo extraer un bill_id para la votación {vote_id}. Se omitirá.")
+            print(f"         ⚠️  Advertencia: No se pudo extraer un bill_id para la votación {vote_id}. Se omitirá.")
             return
 
         fecha_str = root.findtext('v1:Fecha', namespaces=NS)
@@ -185,7 +176,7 @@ def process_and_load_vote_details(vote_id, conn):
                 voto_normalizado = normalize_vote_option(opcion_voto_raw)
                 votos_a_insertar.append((sesion_data['sesion_votacion_id'], mp_uid, voto_normalizado))
             else:
-                print(f"        ⚠️  Advertencia: No se encontró `mp_uid` para el `diputadoid` {diputado_id}.")
+                print(f"         ⚠️  Advertencia: No se encontró `mp_uid` para el `diputadoid` {diputado_id}.")
 
         if votos_a_insertar:
             cursor.executemany("""
@@ -194,7 +185,7 @@ def process_and_load_vote_details(vote_id, conn):
             """, votos_a_insertar)
         
         conn.commit()
-        print(f"        -> Votación {vote_id} y {len(votos_a_insertar)} votos individuales cargados en BD.")
+        print(f"         -> Votación {vote_id} y {len(votos_a_insertar)} votos individuales cargados en BD.")
 
     except ET.ParseError as e:
         print(f"     ❌ Error de XML para la votación {vote_id}: {e}")
@@ -207,13 +198,10 @@ def main():
     """
     Función principal que orquesta el proceso ETL para las votaciones.
     """
-    if TEST_MODE:
-        print("--- Running VOTES ETL in TEST MODE ---")
-    else:
-        print("--- Iniciando Proceso ETL: Votaciones de Proyectos de Ley ---")
+    print("--- Iniciando Proceso ETL: Votaciones de Proyectos de Ley ---")
     
     try:
-        # Asegurarse de que el directorio para los XML de votaciones exista
+        # Asegurarse de que el directorio para los XML de votaciones (caché) exista
         os.makedirs(XML_VOTES_PATH, exist_ok=True)
 
         with sqlite3.connect(DB_PATH) as conn:
@@ -225,7 +213,7 @@ def main():
                 vote_ids = fetch_vote_ids_for_bill(bill_id)
                 if vote_ids:
                     for vote_id in vote_ids:
-                        # Llamamos a la función que ahora tiene la lógica de caché integrada
+                        # La lógica de caché está integrada en esta función
                         process_and_load_vote_details(vote_id, conn)
                 print("-" * 40)
 
