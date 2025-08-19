@@ -30,6 +30,13 @@ CREATE TABLE dim_parlamentario (
     fecha_extraccion DATE DEFAULT (date('now'))
 );
 
+CREATE TABLE dim_periodo_legislativo (
+    periodo_id INTEGER PRIMARY KEY,
+    nombre_periodo TEXT NOT NULL,
+    fecha_inicio DATE,
+    fecha_termino DATE
+);
+
 CREATE TABLE parlamentario_aliases (
     alias_id INTEGER PRIMARY KEY AUTOINCREMENT,
     mp_uid INTEGER NOT NULL,
@@ -60,13 +67,14 @@ CREATE TABLE dim_comisiones (
     tipo TEXT CHECK (tipo IN ('Permanente', 'Especial Investigadora', 'Bicameral'))
 );
 
--- NUEVA TABLA: Basada en la documentación doc_api_camara.md
+
 CREATE TABLE dim_legislatura (
     legislatura_id INTEGER PRIMARY KEY,
+    -- Se elimina la columna 'periodo_id'
     numero INTEGER,
     fecha_inicio DATE,
     fecha_termino DATE,
-    tipo TEXT -- Ejemplo: 'Ordinaria'
+    tipo TEXT
 );
 
 

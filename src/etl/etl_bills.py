@@ -2,20 +2,14 @@
 # -*- coding: utf-8 -*-
 
 """
-Módulo ETL para Proyectos de Ley (Bills)
+Módulo ETL para Proyectos de Ley (Bills) v2.1
 
 Este script implementa el proceso de Extracción, Transformación y Carga para poblar
-las tablas `bills` y `bill_authors` de la base de datos.
+las tablas `bills` y `bill_authors`.
 
-Fuentes de Datos Primarias:
-1.  API de la Cámara de Diputadas y Diputados de Chile:
-    - Endpoints: `retornarMocionesXAnno`, `retornarMensajesXAnno`, `retornarProyectoLey`.
-    - Origen: Se utiliza para obtener el listado de proyectos de ley por año y los
-      detalles específicos de cada uno, como título, fecha, autores, estado, etc.
-
-2.  Base de Datos Local (parlamento.db):
-    - Origen: Se consulta la tabla `dim_parlamentario` para obtener el `mp_uid`
-      a partir del `diputadoid` de los autores, asegurando la integridad referencial.
+NUEVO: Implementa un sistema de caché local para los XML de los proyectos,
+evitando llamadas repetidas a la API y posibles bloqueos.
+CORREGIDO: Se ajusta la lógica de parsing de XML para extraer correctamente todos los campos.
 """
 import sqlite3
 import requests
@@ -27,29 +21,16 @@ import time
 # --- 1. CONFIGURACIÓN Y RUTAS DEL PROYECTO ---
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 DB_PATH = os.path.join(PROJECT_ROOT, 'data', 'database', 'parlamento.db')
+XML_BILLS_PATH = os.path.join(PROJECT_ROOT, 'data', 'xml', 'bills') # Directorio para guardar XMLs
 NS = {'v1': 'http://opendata.camara.cl/camaradiputados/v1'}
 
 # --- ================================================= ---
-# ---         PARÁMETROS DE EJECUCIÓN DEL ETL           ---
+# ---        PARÁMETROS DE EJECUCIÓN DEL ETL          ---
 # --- ================================================= ---
-# Cambia a False para ejecutar en modo producción con los parámetros completos.
-TEST_MODE = True 
+START_YEAR = 2024
+PROCESS_ALL_BILLS = True # Si es True, ignora el límite
 
-# --- Parámetros para MODO PRUEBA (rá pido y con datos limitados) ---
-if TEST_MODE:
-    START_YEAR = 2024
-    FILTER_MONTH = 7 # Procesará solo proyectos de Julio.
-    PROCESS_LIMIT = 15 # Se detendrá después de procesar 15 proyectos que coincidan.
-
-# --- Parámetros para MODO PRODUCCIÓN (completo) ---
-else:
-    START_YEAR = 2018 # Año de inicio para la extracción completa.
-    FILTER_MONTH = None # None significa que procesará todos los meses.
-    PROCESS_LIMIT = None # None significa sin límite.
 # --- ================================================= ---
-
-
-# --- 2. FASE DE EXTRACCIÓN (Extract) ---
 
 def fetch_projects_by_year(year):
     """
@@ -83,30 +64,68 @@ def fetch_projects_by_year(year):
 
 def fetch_bill_details(bill_id):
     """
-    Obtiene los detalles completos de un proyecto de ley.
+    Obtiene los detalles de un proyecto de ley.
+    Primero busca un XML local. Si no lo encuentra, consulta la API y guarda el resultado.
     """
-    url = f"https://opendata.camara.cl/camaradiputados/WServices/WSLegislativo.asmx/retornarProyectoLey?prmNumeroBoletin={bill_id}"
-    print(f"  -> Obteniendo detalles para el boletín: {bill_id}")
-    try:
-        response = requests.get(url, timeout=60)
-        response.raise_for_status()
-        root = ET.fromstring(response.content)
+    xml_file_path = os.path.join(XML_BILLS_PATH, f"{bill_id}.xml")
+    xml_content = None
 
+    # 1. Intentar leer desde el archivo local (caché)
+    if os.path.exists(xml_file_path):
+        print(f"  -> Leyendo detalles del boletín {bill_id} desde caché local...")
+        with open(xml_file_path, 'rb') as f:
+            xml_content = f.read()
+    else:
+        # 2. Si no existe, obtener desde la API
+        print(f"  -> Obteniendo detalles para el boletín {bill_id} desde la API...")
+        url = f"https://opendata.camara.cl/camaradiputados/WServices/WSLegislativo.asmx/retornarProyectoLey?prmNumeroBoletin={bill_id}"
+        try:
+            response = requests.get(url, timeout=60)
+            response.raise_for_status()
+            xml_content = response.content
+            # Guardar el contenido en un archivo para la próxima vez
+            with open(xml_file_path, 'wb') as f:
+                f.write(xml_content)
+            print(f"     -> XML guardado en caché: {xml_file_path}")
+            time.sleep(0.2) # Pausa cortés al usar la API
+        except requests.exceptions.RequestException as e:
+            print(f"  ❌ Error de red para el boletín {bill_id}: {e}")
+            return None
+
+    # 3. Parsear el contenido XML (ya sea de la API o del archivo)
+    if not xml_content:
+        return None
+        
+    try:
+        root = ET.fromstring(xml_content)
         details = {}
         details["bill_id"] = bill_id
+        
+        # --- ✅ LÓGICA DE EXTRACCIÓN CORREGIDA ---
+        # Usamos findtext con './/' para buscar en todo el árbol XML.
+        # Esto es más robusto y encuentra el dato sin importar su nivel de anidación.
+        
         fecha_ingreso_str = root.findtext('.//v1:FechaIngreso', namespaces=NS)
         details["fecha_ingreso"] = fecha_ingreso_str.split('T')[0] if fecha_ingreso_str else None
+        
         details["titulo"] = root.findtext('.//v1:Nombre', namespaces=NS)
+        
         resumen = root.findtext('.//v1:Resumen', namespaces=NS)
         details["resumen"] = resumen if resumen and resumen.strip() else details["titulo"]
+        
         details["etapa"] = root.findtext('.//v1:Etapa', namespaces=NS)
-        details["iniciativa"] = root.findtext('.//v1:TipoIniciativa/v1:Nombre', namespaces=NS)
-        details["origen"] = root.findtext('.//v1:CamaraOrigen/v1:Nombre', namespaces=NS)
+        
+        # Corrección principal: Usar findtext para más seguridad
+        details["iniciativa"] = root.findtext('.//v1:TipoIniciativa', namespaces=NS)
+        details["origen"] = root.findtext('.//v1:CamaraOrigen', namespaces=NS)
+        
         urgencia_node = root.find('.//v1:UrgenciaActual', NS)
         details["urgencia"] = urgencia_node.text if urgencia_node is not None else "Sin urgencia"
+
         details["resultado_final"] = root.findtext('.//v1:Estado', namespaces=NS)
-        ley_numero_node = root.find('.//v1:Ley/v1:Numero', NS)
-        details["ley_numero"] = ley_numero_node.text if ley_numero_node is not None else None
+        
+        details["ley_numero"] = root.findtext('.//v1:Ley/v1:Numero', namespaces=NS)
+        
         ley_fecha_str = root.findtext('.//v1:Ley/v1:FechaPublicacion', namespaces=NS)
         details["ley_fecha_publicacion"] = ley_fecha_str.split('T')[0] if ley_fecha_str else None
         
@@ -119,15 +138,11 @@ def fetch_bill_details(bill_id):
 
         return details
 
-    except requests.exceptions.RequestException as e:
-        print(f"  ❌ Error de red para el boletín {bill_id}: {e}")
     except ET.ParseError as e:
         print(f"  ❌ Error de XML para el boletín {bill_id}: {e}")
-    
-    return None
+        return None
 
-# --- 3. FASE DE CARGA (Load) ---
-
+# --- FASE DE CARGA (Sin cambios) ---
 def load_bill_to_db(bill_details, conn):
     """
     Carga los detalles de un proyecto de ley y sus autores en la base de datos.
@@ -149,11 +164,11 @@ def load_bill_to_db(bill_details, conn):
             bill_details['ley_numero'], bill_details['ley_fecha_publicacion']
         ))
     except sqlite3.Error as e:
-        print(f"    ❌ Error al insertar en `bills` para {bill_details['bill_id']}: {e}")
+        print(f"     ❌ Error al insertar en `bills` para {bill_details['bill_id']}: {e}")
         return
 
     if not bill_details['autores_ids']:
-        print(f"    -> Proyecto {bill_details['bill_id']} insertado (Mensaje sin autores parlamentarios).")
+        print(f"     -> Proyecto {bill_details['bill_id']} insertado (Mensaje sin autores parlamentarios).")
         conn.commit()
         return
 
@@ -167,62 +182,34 @@ def load_bill_to_db(bill_details, conn):
                 cursor.execute("INSERT OR IGNORE INTO bill_authors (bill_id, mp_uid) VALUES (?, ?)", (bill_details['bill_id'], mp_uid))
                 autores_cargados += 1
             else:
-                print(f"    ⚠️  Advertencia: No se encontró `mp_uid` para el autor con `diputadoid` {diputado_id}.")
+                print(f"     ⚠️  Advertencia: No se encontró `mp_uid` para el autor con `diputadoid` {diputado_id}.")
         except sqlite3.Error as e:
-            print(f"    ❌ Error al insertar autor {diputado_id} en `bill_authors`: {e}")
+            print(f"     ❌ Error al insertar autor {diputado_id} en `bill_authors`: {e}")
 
-    print(f"    -> Proyecto {bill_details['bill_id']} insertado y {autores_cargados} autores vinculados.")
+    print(f"     -> Proyecto {bill_details['bill_id']} insertado y {autores_cargados} autores vinculados.")
     conn.commit()
 
 # --- 4. ORQUESTACIÓN ---
-
 def main():
-    if TEST_MODE:
-        print("--- [BILLS ETL] Ejecutando en MODO PRUEBA ---")
-        print(f"Año: {START_YEAR}, Mes: {FILTER_MONTH}, Límite: {PROCESS_LIMIT}")
-    else:
-        print("--- [BILLS ETL] Iniciando Proceso ETL Completo ---")
+    print(f"--- [BILLS ETL] Iniciando proceso para el año {START_YEAR} ---")
 
     try:
-        os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+        # Asegurarse de que el directorio para los XML exista
+        os.makedirs(XML_BILLS_PATH, exist_ok=True)
+        
         with sqlite3.connect(DB_PATH) as conn:
             conn.execute("PRAGMA foreign_keys = ON;")
             
-            end_year = datetime.now().year
-            all_bill_ids = []
-            
-            # Determinar el rango de años a procesar
-            years_to_process = [START_YEAR] if TEST_MODE else range(START_YEAR, end_year + 1)
-
-            for year in years_to_process:
-                bill_ids_year = fetch_projects_by_year(year)
-                all_bill_ids.extend(bill_ids_year)
-                if not TEST_MODE:
-                    print(f"✅  Año {year} procesado. {len(bill_ids_year)} proyectos encontrados.")
-                    time.sleep(1)
-            
-            unique_bill_ids = sorted(list(set(all_bill_ids)), reverse=True)
-            print(f"\n📑 Se encontraron un total de {len(unique_bill_ids)} proyectos de ley únicos para procesar.\n")
+            bill_ids = fetch_projects_by_year(START_YEAR)
+            unique_bill_ids = sorted(list(set(bill_ids)), reverse=True)
+            print(f"\n📑 Se encontraron {len(unique_bill_ids)} proyectos de ley únicos para procesar.\n")
 
             processed_count = 0
             for bill_id in unique_bill_ids:
-                if PROCESS_LIMIT is not None and processed_count >= PROCESS_LIMIT:
-                    print(f"  -> Límite de procesamiento de {PROCESS_LIMIT} proyectos alcanzado.")
-                    break
-                
                 details = fetch_bill_details(bill_id)
-                time.sleep(0.2)
-                
-                if details and details['fecha_ingreso']:
-                    try:
-                        ingreso_date = datetime.strptime(details['fecha_ingreso'], '%Y-%m-%d')
-                        # Si FILTER_MONTH está definido, solo procesar los proyectos de ese mes
-                        if FILTER_MONTH is None or ingreso_date.month == FILTER_MONTH:
-                            load_bill_to_db(details, conn)
-                            processed_count += 1
-                    except (ValueError, TypeError):
-                        print(f"  -> Omitiendo proyecto {bill_id} por fecha inválida.")
-                        continue
+                if details:
+                    load_bill_to_db(details, conn)
+                    processed_count += 1
             
             print(f"\nTotal de proyectos cargados en la base de datos: {processed_count}")
 

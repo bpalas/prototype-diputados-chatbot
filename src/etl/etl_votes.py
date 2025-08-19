@@ -2,20 +2,13 @@
 # -*- coding: utf-8 -*-
 
 """
-Módulo ETL para Votaciones Parlamentarias
+Módulo ETL para Votaciones Parlamentarias v2.0
 
 Este script implementa el proceso de Extracción, Transformación y Carga para poblar
-las tablas `sesiones_votacion` y `votos_parlamentario` de la base de datos.
+las tablas `sesiones_votacion` y `votos_parlamentario`.
 
-Fuentes de Datos Primarias:
-1.  API de la Cámara de Diputadas y Diputados de Chile:
-    - Endpoints: `retornarVotacionesXProyectoLey`, `retornarVotacionDetalle`.
-    - Origen: Se utiliza para obtener las votaciones asociadas a un proyecto de ley
-      y el detalle de cada voto individual por parlamentario.
-
-2.  Base de Datos Local (parlamento.db):
-    - Origen: Se consulta la tabla `bills` para obtener los proyectos a procesar
-      y la tabla `dim_parlamentario` para mapear los `diputadoid` a `mp_uid`.
+NUEVO: Implementa un sistema de caché local para los XML de los detalles de votación,
+evitando llamadas repetidas a la API y acelerando la re-ejecución.
 """
 
 import sqlite3
@@ -25,9 +18,10 @@ import os
 import time
 import re
 
-# --- 1. CONFIGURACIÓN Y RUTAS DEL PROYECTO ---
+# --- 1. CONFIGURACIÓN Y RUTAS DEL PROYETO ---
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 DB_PATH = os.path.join(PROJECT_ROOT, 'data', 'database', 'parlamento.db')
+XML_VOTES_PATH = os.path.join(PROJECT_ROOT, 'data', 'xml', 'votes') # Directorio para guardar XMLs de votaciones
 NS = {'v1': 'http://opendata.camara.cl/camaradiputados/v1'}
 
 # --- ================================================= ---
@@ -61,6 +55,7 @@ def get_bill_ids_from_db(conn):
 def fetch_vote_ids_for_bill(bill_id):
     """
     Para un `bill_id` dado, consulta la API para obtener los IDs de todas sus votaciones.
+    (Nota: Esta parte no se cachea porque la lista de votaciones de un proyecto en curso podría cambiar).
     """
     url = f"https://opendata.camara.cl/camaradiputados/WServices/WSLegislativo.asmx/retornarVotacionesXProyectoLey?prmNumeroBoletin={bill_id}"
     print(f"  -> Buscando votaciones para el boletín: {bill_id}")
@@ -71,11 +66,11 @@ def fetch_vote_ids_for_bill(bill_id):
         
         votaciones_nodes = root.findall('.//v1:Votaciones/v1:VotacionProyectoLey', NS)
         if not votaciones_nodes:
-            print("    - No se encontraron votaciones para este proyecto.")
+            print("     - No se encontraron votaciones para este proyecto.")
             return []
 
         vote_ids = [v.findtext('v1:Id', namespaces=NS) for v in votaciones_nodes]
-        print(f"    - Se encontraron {len(vote_ids)} votaciones.")
+        print(f"     - Se encontraron {len(vote_ids)} votaciones.")
         return vote_ids
 
     except requests.exceptions.RequestException as e:
@@ -107,26 +102,49 @@ def normalize_vote_option(vote_text):
     return vote_map.get(vote_text, vote_text)
 
 
-# --- 3. FASE DE CARGA (Load) ---
+# --- 3. FASE DE CARGA (Load) CON LÓGICA DE CACHÉ ---
 
-def fetch_and_load_vote_details(vote_id, conn):
+def process_and_load_vote_details(vote_id, conn):
     """
-    Obtiene los detalles de una votación, los carga en `sesiones_votacion` y
+    Obtiene los detalles de una votación desde el caché o la API, los carga en `sesiones_votacion` y
     luego carga cada voto individual en `votos_parlamentario`.
     """
-    url = f"https://opendata.camara.cl/camaradiputados/WServices/WSLegislativo.asmx/retornarVotacionDetalle?prmVotacionId={vote_id}"
-    print(f"    -> Procesando detalles de la votación ID: {vote_id}")
+    xml_file_path = os.path.join(XML_VOTES_PATH, f"{vote_id}.xml")
+    xml_content = None
+
+    # 1. Intentar leer desde el archivo local (caché)
+    if os.path.exists(xml_file_path):
+        print(f"     -> Leyendo votación {vote_id} desde caché local...")
+        with open(xml_file_path, 'rb') as f:
+            xml_content = f.read()
+    else:
+        # 2. Si no existe, obtener desde la API y guardar en caché
+        url = f"https://opendata.camara.cl/camaradiputados/WServices/WSLegislativo.asmx/retornarVotacionDetalle?prmVotacionId={vote_id}"
+        print(f"     -> Obteniendo votación {vote_id} desde la API...")
+        try:
+            response = requests.get(url, timeout=60)
+            response.raise_for_status()
+            xml_content = response.content
+            with open(xml_file_path, 'wb') as f:
+                f.write(xml_content)
+            print(f"        -> XML de votación {vote_id} guardado en caché.")
+            time.sleep(0.2) # Pausa cortés al usar la API
+        except requests.exceptions.RequestException as e:
+            print(f"     ❌ Error de red para la votación {vote_id}: {e}")
+            return # Salir si no se pudo obtener el XML
+
+    # 3. Procesar el XML y cargar a la base de datos
+    if not xml_content:
+        return
+
     try:
-        response = requests.get(url, timeout=60)
-        response.raise_for_status()
-        root = ET.fromstring(response.content)
+        root = ET.fromstring(xml_content)
         
         # --- 3.1 Extraer datos para `sesiones_votacion` ---
         descripcion = root.findtext('v1:Descripcion', namespaces=NS)
-        # Intenta parsear el bill_id de la descripción. Crucial para la relación.
         bill_id = parse_bill_id_from_description(descripcion)
         if not bill_id:
-            print(f"      ⚠️  Advertencia: No se pudo extraer un bill_id para la votación {vote_id}. Se omitirá.")
+            print(f"        ⚠️  Advertencia: No se pudo extraer un bill_id para la votación {vote_id}. Se omitirá.")
             return
 
         fecha_str = root.findtext('v1:Fecha', namespaces=NS)
@@ -167,7 +185,7 @@ def fetch_and_load_vote_details(vote_id, conn):
                 voto_normalizado = normalize_vote_option(opcion_voto_raw)
                 votos_a_insertar.append((sesion_data['sesion_votacion_id'], mp_uid, voto_normalizado))
             else:
-                print(f"      ⚠️  Advertencia: No se encontró `mp_uid` para el `diputadoid` {diputado_id}.")
+                print(f"        ⚠️  Advertencia: No se encontró `mp_uid` para el `diputadoid` {diputado_id}.")
 
         if votos_a_insertar:
             cursor.executemany("""
@@ -176,15 +194,12 @@ def fetch_and_load_vote_details(vote_id, conn):
             """, votos_a_insertar)
         
         conn.commit()
-        print(f"      -> Votación {vote_id} y {len(votos_a_insertar)} votos individuales cargados en BD.")
+        print(f"        -> Votación {vote_id} y {len(votos_a_insertar)} votos individuales cargados en BD.")
 
-    except requests.exceptions.RequestException as e:
-        print(f"    ❌ Error de red para la votación {vote_id}: {e}")
     except ET.ParseError as e:
-        print(f"    ❌ Error de XML para la votación {vote_id}: {e}")
+        print(f"     ❌ Error de XML para la votación {vote_id}: {e}")
     except sqlite3.Error as e:
-        print(f"    ❌ Error de base de datos para la votación {vote_id}: {e}")
-
+        print(f"     ❌ Error de base de datos para la votación {vote_id}: {e}")
 
 # --- 4. ORQUESTACIÓN ---
 
@@ -198,6 +213,9 @@ def main():
         print("--- Iniciando Proceso ETL: Votaciones de Proyectos de Ley ---")
     
     try:
+        # Asegurarse de que el directorio para los XML de votaciones exista
+        os.makedirs(XML_VOTES_PATH, exist_ok=True)
+
         with sqlite3.connect(DB_PATH) as conn:
             conn.execute("PRAGMA foreign_keys = ON;")
             
@@ -207,8 +225,8 @@ def main():
                 vote_ids = fetch_vote_ids_for_bill(bill_id)
                 if vote_ids:
                     for vote_id in vote_ids:
-                        fetch_and_load_vote_details(vote_id, conn)
-                        time.sleep(0.25) # Pausa cortés para no sobrecargar la API
+                        # Llamamos a la función que ahora tiene la lógica de caché integrada
+                        process_and_load_vote_details(vote_id, conn)
                 print("-" * 40)
 
     except Exception as e:
