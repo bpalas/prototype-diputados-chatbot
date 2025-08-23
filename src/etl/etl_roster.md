@@ -83,14 +83,3 @@ Registra la trayectoria de afiliaciones políticas de cada parlamentario.
     * `partido_id`: **(Clave Foránea)** Referencia al partido político.
     * `fecha_inicio`, `fecha_fin`: **(Cámara)** Fechas de inicio y término de la afiliación.
 
----
-
-### Tablas No Afectadas por este Script 🚫
-
-Este script está altamente especializado en el "Roster Parlamentario". Las siguientes tablas definidas en el esquema **NO son modificadas** y dependen de sus propios procesos ETL:
-
-* `parlamentario_aliases`
-* `dim_coaliciones`
-* `dim_comisiones`
-* `electoral_results`, `educacion`, `comision_membresias`
-* Todas las tablas de los módulos de `ACTIVIDAD LEGISLATIVA` y `ACTIVIDAD PÚBLICA` (`bills`, `votes_parlamentario`, `speech_turns`, etc.).

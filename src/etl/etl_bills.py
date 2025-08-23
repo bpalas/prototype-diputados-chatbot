@@ -9,7 +9,6 @@ las tablas `bills` y `bill_authors`.
 
 NUEVO: Implementa un sistema de caché local para los XML de los proyectos,
 evitando llamadas repetidas a la API y posibles bloqueos.
-CORREGIDO: Se ajusta la lógica de parsing de XML para extraer correctamente todos los campos.
 """
 import sqlite3
 import requests
@@ -142,7 +141,7 @@ def fetch_bill_details(bill_id):
         print(f"  ❌ Error de XML para el boletín {bill_id}: {e}")
         return None
 
-# --- FASE DE CARGA (Sin cambios) ---
+# --- FASE DE CARGA ---
 def load_bill_to_db(bill_details, conn):
     """
     Carga los detalles de un proyecto de ley y sus autores en la base de datos.

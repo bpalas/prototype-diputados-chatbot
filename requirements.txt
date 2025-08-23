@@ -1,0 +1,22 @@
+# Core dependencies
+requests>=2.31.0
+pandas>=2.0.0
+sqlite3  # Built-in with Python
+xml.etree.ElementTree  # Built-in with Python
+
+# SPARQL queries para BCN
+SPARQLWrapper>=2.0.0
+
+# Future chatbot dependencies ( RAG)
+# streamlit>=1.28.0
+# langchain>=0.0.300
+# chromadb>=0.4.0
+# openai>=1.0.0
+
+# Development and reporting
+jupyter>=1.0.0
+notebook>=6.5.0
+
+# Optional: para análisis de datos
+matplotlib>=3.7.0
+seaborn>=0.12.0
