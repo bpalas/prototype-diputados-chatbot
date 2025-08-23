@@ -258,7 +258,7 @@ HISTORIAL DE CONVERSACIÓN:
         if OLLAMA_AVAILABLE:
             try:
                 response = ollama.chat(
-                    model='llama3.2:3b',  # Puedes cambiar el modelo
+                    model='qwen2.5:7b',  # Puedes cambiar el modelo
                     messages=[
                         {'role': 'system', 'content': system_prompt},
                         {'role': 'user', 'content': user_query}
