@@ -16,9 +16,15 @@ import yt_dlp
 import json
 from dotenv import load_dotenv
 import time
+import logging
+
+from utils.retry import retry
 
 # --- 1. CONFIGURACIÓN ---
 load_dotenv() # Carga las variables de entorno desde el archivo .env
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Cliente de OpenAI
 if not os.getenv("OPENAI_API_KEY"):
@@ -55,6 +61,7 @@ def get_miembros_comision(comision_id: int) -> pd.DataFrame:
 # Reemplaza la función download_audio en src/etl/process_video_transcripts.py con esta:
 # Reemplaza tu función download_audio con esta versión final
 # Reemplaza esta función en src/scripts/process_video_transcripts.py
+@retry()
 def download_audio(video_url: str, video_id: str) -> str | None:
     """
     Descarga y convierte el audio a formato FLAC MONO, que es ideal para
@@ -63,10 +70,13 @@ def download_audio(video_url: str, video_id: str) -> str | None:
     output_template = os.path.join(AUDIO_CACHE_PATH, f"{video_id}.flac")
 
     if os.path.exists(output_template):
-        print(f"  -> Audio ya existe en caché: {output_template}")
+        logger.info("Audio ya existe en caché", extra={"video_id": video_id, "path": output_template})
         return output_template
 
-    print(f"  -> Descargando y convirtiendo audio para '{video_url}' a FLAC MONO...")
+    logger.info(
+        "Descargando y convirtiendo audio a FLAC MONO",
+        extra={"video_id": video_id, "video_url": video_url},
+    )
 
     ydl_opts = {
         'format': 'bestaudio/best',
@@ -91,25 +101,37 @@ def download_audio(video_url: str, video_id: str) -> str | None:
         final_filepath = os.path.join(AUDIO_CACHE_PATH, f"{video_id}.flac")
         
         if os.path.exists(final_filepath):
-            print(f"  -> Descarga y conversión completada: {final_filepath}")
+            logger.info(
+                "Descarga y conversión completada",
+                extra={"video_id": video_id, "path": final_filepath},
+            )
             return final_filepath
         else:
             # Fallback por si algo sale mal con los nombres
             raise FileNotFoundError(f"El archivo convertido {final_filepath} no fue encontrado.")
 
     except Exception as e:
-        print(f"  ❌ Error al descargar/convertir con yt-dlp: {e}")
-        print("  -> Asegúrate de que FFmpeg esté instalado y accesible en el PATH del sistema.")
+        logger.error(
+            "Error al descargar/convertir con yt-dlp: %s", e, extra={"video_id": video_id}
+        )
+        logger.warning(
+            "Asegúrate de que FFmpeg esté instalado y accesible en el PATH del sistema."
+        )
         return None
+@retry()
 def upload_to_gcs(source_file_path: str, destination_blob_name: str):
     """Sube un archivo a Google Cloud Storage."""
     storage_client = storage.Client()
     bucket = storage_client.bucket(GCS_BUCKET_NAME)
     blob = bucket.blob(destination_blob_name)
-    print(f"  -> Subiendo a GCS: gs://{GCS_BUCKET_NAME}/{destination_blob_name}")
+    logger.info(
+        "Subiendo a GCS",
+        extra={"destination": f"gs://{GCS_BUCKET_NAME}/{destination_blob_name}"},
+    )
     blob.upload_from_filename(source_file_path)
 # Reemplaza esta función en src/scripts/process_video_transcripts.py
 # Reemplaza esta función en src/scripts/process_video_transcripts.py
+@retry()
 def transcribe_gcs_audio_with_diarization(gcs_uri: str):
     """Transcripción con diarización activada."""
     client = speech.SpeechClient()
@@ -127,19 +149,27 @@ def transcribe_gcs_audio_with_diarization(gcs_uri: str):
         # La línea 'model="video",' ha sido eliminada.
     )
     
-    print("  -> Iniciando trabajo de transcripción en GCP...")
+    logger.info("Iniciando trabajo de transcripción en GCP", extra={"gcs_uri": gcs_uri})
     operation = client.long_running_recognize(config=config, audio=audio)
-    
-    print("  -> Esperando a que finalice la transcripción (esto puede tardar MUCHO tiempo)...")
+
+    logger.info(
+        "Esperando a que finalice la transcripción (esto puede tardar MUCHO tiempo)...",
+        extra={"gcs_uri": gcs_uri},
+    )
     
     # Mantenemos el timeout largo, ¡esto es importante!
     response = operation.result(timeout=10800) 
     return response
 
-def identify_speakers_with_llm(transcript_text: str, miembros_comision_df: pd.DataFrame) -> dict:
+@retry()
+def identify_speakers_with_llm(
+    transcript_text: str, miembros_comision_df: pd.DataFrame, comision_id: int
+) -> dict:
     """Usa un LLM para mapear etiquetas de hablante a mp_uid."""
     if miembros_comision_df.empty:
-        print("  -> ⚠️ No hay miembros de comisión para identificar. Se omitirá la identificación.")
+        logger.warning(
+            "No hay miembros de comisión para identificar", extra={"comision_id": comision_id}
+        )
         return {}
 
     miembros_json_str = miembros_comision_df.to_json(orient='records', force_ascii=False)
@@ -160,7 +190,10 @@ def identify_speakers_with_llm(transcript_text: str, miembros_comision_df: pd.Da
     Si no puedes identificar a un hablante con certeza, omítelo del JSON de respuesta.
     """
 
-    print("  -> Usando LLM (OpenAI) para identificar hablantes...")
+    logger.info(
+        "Usando LLM (OpenAI) para identificar hablantes",
+        extra={"comision_id": comision_id},
+    )
     try:
         response = client.chat.completions.create(
             model="gpt-4o", # Modelo potente para esta tarea compleja
@@ -176,14 +209,19 @@ def identify_speakers_with_llm(transcript_text: str, miembros_comision_df: pd.Da
         # Convertir las claves del JSON (que son string) a enteros
         return {int(k): v for k, v in mapping_str_keys.items()}
     except Exception as e:
-        print(f"  -> ❌ Error en la API de OpenAI durante la identificación: {e}")
+        logger.error(
+            "Error en la API de OpenAI durante la identificación: %s", e, extra={"comision_id": comision_id}
+        )
         return {}
 
 
 def process_and_load_turns(response, video_info, speaker_mapping, conn):
     """Agrupa las palabras por hablante y carga los turnos en la base de datos."""
     if not (response.results and response.results[-1].alternatives):
-        print("  -> ⚠️ La respuesta de transcripción está vacía. No se cargarán datos.")
+        logger.warning(
+            "La respuesta de transcripción está vacía. No se cargarán datos",
+            extra={"video_id": video_info.get("video_id")},
+        )
         return
 
     words = response.results[-1].alternatives[0].words
@@ -222,7 +260,10 @@ def process_and_load_turns(response, video_info, speaker_mapping, conn):
         speech_turns.append(current_turn)
 
     if not speech_turns:
-        print("  -> ⚠️ No se pudieron construir turnos de habla a partir de la transcripción.")
+        logger.warning(
+            "No se pudieron construir turnos de habla a partir de la transcripción",
+            extra={"video_id": video_info.get("video_id")},
+        )
         return
 
     cursor = conn.cursor()
@@ -235,7 +276,11 @@ def process_and_load_turns(response, video_info, speaker_mapping, conn):
             turn['tema'], turn['url_video'], turn['inicio_seg'], turn['fin_seg']
         ))
     conn.commit()
-    print(f"  ✅ Se insertaron {len(speech_turns)} turnos de habla en la base de datos.")
+    logger.info(
+        "Se insertaron %d turnos de habla en la base de datos",
+        len(speech_turns),
+        extra={"video_id": video_info.get("video_id"), "comision_id": video_info.get("comision_id")},
+    )
 
 
 def main():
@@ -243,12 +288,18 @@ def main():
     try:
         df_videos = pd.read_csv(INPUT_CSV_PATH).dropna(subset=['comision_id', 'fecha'])
     except FileNotFoundError:
-        print(f"❌ Error: No se encontró el archivo de manifiesto en '{INPUT_CSV_PATH}'.")
-        print("Asegúrate de ejecutar primero 'fetch_playlist.py' y 'link_videos_to_comisiones.py'.")
+        logger.error(
+            "No se encontró el archivo de manifiesto", extra={"path": INPUT_CSV_PATH}
+        )
+        logger.info(
+            "Asegúrate de ejecutar primero 'fetch_playlist.py' y 'link_videos_to_comisiones.py'."
+        )
         return
 
     for _, video_row in df_videos.iterrows():
-        print(f"\n▶️  Procesando video: {video_row['title']}")
+        logger.info(
+            "Procesando video: %s", video_row['title'], extra={"video_id": video_row['video_id']}
+        )
         
         audio_path = download_audio(video_row['video_url'], video_row['video_id'])
         if not audio_path: continue
@@ -276,27 +327,36 @@ def main():
                     full_transcript_text += f"\nHablante {tag}: {' '.join(words)}\n"
             
             if not full_transcript_text:
-                print("  -> ⚠️ La transcripción de GCP está vacía. Saltando al siguiente video.")
+                logger.warning(
+                    "La transcripción de GCP está vacía. Saltando al siguiente video",
+                    extra={"video_id": video_row['video_id']},
+                )
                 continue
 
             miembros_df = get_miembros_comision(int(video_row['comision_id']))
-            speaker_map = identify_speakers_with_llm(full_transcript_text, miembros_df)
-            
+            speaker_map = identify_speakers_with_llm(
+                full_transcript_text, miembros_df, int(video_row['comision_id'])
+            )
+
             if not speaker_map:
-                print("  -> ⚠️ El LLM no pudo identificar a los hablantes. No se cargarán datos para este video.")
+                logger.warning(
+                    "El LLM no pudo identificar a los hablantes. No se cargarán datos para este video",
+                    extra={"video_id": video_row['video_id'], "comision_id": video_row['comision_id']},
+                )
                 continue
 
             with sqlite3.connect(DB_PATH) as conn:
                 process_and_load_turns(gcp_response, video_row.to_dict(), speaker_map, conn)
 
         except Exception as e:
-            print(f"  ❌ Ocurrió un error general procesando el video {video_row['video_id']}: {e}")
+            logger.error(
+                "Ocurrió un error general procesando el video: %s", e, extra={"video_id": video_row['video_id']}
+            )
         finally:
             # Limpiar el archivo de audio local después de procesar
             if os.path.exists(audio_path):
                 os.remove(audio_path)
-
-    print("\n🎉 --- Proceso de Transcripción y Carga Finalizado --- 🎉")
+    logger.info("Proceso de Transcripción y Carga Finalizado")
 
 if __name__ == "__main__":
     main()

@@ -7,14 +7,24 @@ para enlazar cada video con su comision_id correspondiente desde la base de dato
 """
 
 import os
+import json
+import re
+import unicodedata
+from typing import Dict
+
 import pandas as pd
 import sqlite3
 from openai import OpenAI
-import json
 from dotenv import load_dotenv
+import logging
+
+from utils.retry import retry
 
 # --- 1. CONFIGURACIÓN ---
 load_dotenv() # Carga las variables de entorno desde un archivo .env
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Asegúrate de que tu clave de API de OpenAI esté en un archivo .env
 # OPENAI_API_KEY="sk-..."
@@ -28,19 +38,21 @@ PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..
 DB_PATH = os.path.join(PROJECT_ROOT, 'data', 'database', 'parlamento.db')
 INPUT_CSV_PATH = os.path.join(PROJECT_ROOT, 'data', 'video_processing', 'playlists', 'playlists 2025', 'comisiones_2025.csv')
 OUTPUT_CSV_PATH = os.path.join(PROJECT_ROOT, 'data', 'video_processing', 'playlists', 'playlists 2025', 'comisiones_2025_enlazado.csv')
+CACHE_PATH = os.path.join(PROJECT_ROOT, 'data', 'video_processing', 'cache_enlaces.json')
 
 def get_comisiones_from_db() -> pd.DataFrame:
     """Obtiene el catálogo de comisiones desde la base de datos."""
-    print("📚 Conectando a la base de datos para obtener comisiones...")
+    logger.info("Conectando a la base de datos para obtener comisiones")
     try:
         with sqlite3.connect(DB_PATH) as conn:
             df = pd.read_sql_query("SELECT comision_id, nombre_comision FROM dim_comisiones", conn)
-            print(f"✅ Se encontraron {len(df)} comisiones.")
+            logger.info("Se encontraron %d comisiones", len(df))
             return df
     except Exception as e:
-        print(f"❌ Error al leer la base de datos: {e}")
+        logger.error("Error al leer la base de datos: %s", e)
         return pd.DataFrame()
 
+@retry()
 def link_video_to_comision(video_title: str, comisiones_json_str: str) -> dict:
     """
     Usa el LLM de OpenAI para encontrar la comisión y fecha en el título de un video.
@@ -73,12 +85,12 @@ def link_video_to_comision(video_title: str, comisiones_json_str: str) -> dict:
         )
         return json.loads(response.choices[0].message.content)
     except Exception as e:
-        print(f"  -> ❌ Error en la API de OpenAI: {e}")
+        logger.error("Error en la API de OpenAI: %s", e)
         return {"comision_id": None, "nombre_comision": None, "fecha": None}
 
 def main():
     """Función principal para orquestar el proceso de enlace."""
-    print("--- Iniciando Proceso de Enlace de Videos a Comisiones ---")
+    logger.info("Iniciando Proceso de Enlace de Videos a Comisiones")
     
     # 1. Cargar los datos
     df_comisiones = get_comisiones_from_db()
@@ -87,19 +99,28 @@ def main():
         
     try:
         df_videos = pd.read_csv(INPUT_CSV_PATH)
-        print(f"📄 Se cargaron {len(df_videos)} videos desde el manifiesto.")
+        logger.info("Se cargaron %d videos desde el manifiesto", len(df_videos))
     except FileNotFoundError:
-        print(f"❌ No se encontró el archivo de entrada: {INPUT_CSV_PATH}")
+        logger.error("No se encontró el archivo de entrada", extra={"path": INPUT_CSV_PATH})
         return
 
     # 2. Preparar contexto para el LLM
     comisiones_context_str = df_comisiones.to_json(orient='records')
-    
+
+    # Cargar cache existente
+    cache = load_cache()
+
     # 3. Iterar, procesar y enriquecer
     results = []
     total_videos = len(df_videos)
     for index, row in df_videos.iterrows():
-        print(f"🧠 Procesando video {index + 1}/{total_videos}: {row['title']}")
+        logger.info(
+            "Procesando video %d/%d: %s",
+            index + 1,
+            total_videos,
+            row['title'],
+            extra={"video_id": row['video_id']},
+        )
         
         # Llamada al LLM
         linked_data = link_video_to_comision(row['title'], comisiones_context_str)
@@ -120,7 +141,7 @@ def main():
     df_final = df_final[column_order]
 
     df_final.to_csv(OUTPUT_CSV_PATH, index=False, encoding='utf-8')
-    print(f"\n✅ Proceso completado. Archivo enriquecido guardado en: {OUTPUT_CSV_PATH}")
+    logger.info("Proceso completado. Archivo enriquecido guardado en: %s", OUTPUT_CSV_PATH)
 
 
 if __name__ == "__main__":
