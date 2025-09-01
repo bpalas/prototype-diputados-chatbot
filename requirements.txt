@@ -1,22 +1,28 @@
-# Core dependencies
+# Core
 requests>=2.31.0
 pandas>=2.0.0
-sqlite3  # Built-in with Python
-xml.etree.ElementTree  # Built-in with Python
+python-dotenv>=1.0.0
 
-# SPARQL queries para BCN
+# SPARQL (BCN)
 SPARQLWrapper>=2.0.0
 
-# Future chatbot dependencies ( RAG)
-# streamlit>=1.28.0
-# langchain>=0.0.300
-# chromadb>=0.4.0
-# openai>=1.0.0
+# ETL de playlists/videos (opcional)
+yt-dlp>=2024.8.6
 
-# Development and reporting
+# LLM (opcional)
+openai>=1.0.0
+
+# Streamlit app (opcional)
+streamlit>=1.28.0
+
+# Google Cloud Speech + Storage (opcional, para transcripciones)
+google-cloud-speech>=2.26.0
+google-cloud-storage>=2.16.0
+
+# Dev & reporting
 jupyter>=1.0.0
 notebook>=6.5.0
 
-# Optional: para análisis de datos
+# Visualización (opcional)
 matplotlib>=3.7.0
 seaborn>=0.12.0
