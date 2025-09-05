@@ -93,12 +93,13 @@ def fetch_bcn_data_df():
         PREFIX dc: <http://purl.org/dc/elements/1.1/>
         PREFIX bio: <http://purl.org/vocab/bio/0.1/>
 
-        SELECT 
-            ?bcn_uri ?diputadoid ?nombre_propio ?apellido_paterno ?apellido_materno
+        SELECT
+            ?bcn_uri ?diputadoid ?bcn_person_id ?nombre_propio ?apellido_paterno ?apellido_materno
             ?fecha_nacimiento ?lugar_nacimiento ?url_foto ?twitter_handle
             ?sitio_web_personal ?profesion ?url_historia_politica
         WHERE {
           ?bcn_uri bcnbio:idCamaraDeDiputados ?diputadoid .
+          ?bcn_uri dc:identifier ?bcn_person_id .
           OPTIONAL { ?bcn_uri foaf:givenName ?nombre_propio . }
           OPTIONAL { ?bcn_uri bcnbio:surnameOfFather ?apellido_paterno . }
           OPTIONAL { ?bcn_uri bcnbio:surnameOfMother ?apellido_materno . }
@@ -132,6 +133,7 @@ def fetch_bcn_data_df():
         bcn_list.append({
             'bcn_uri': res.get('bcn_uri', {}).get('value'),
             'diputadoid': res.get('diputadoid', {}).get('value'),
+            'bcn_person_id': res.get('bcn_person_id', {}).get('value'),
             'nombre_propio': res.get('nombre_propio', {}).get('value'),
             'apellido_paterno': res.get('apellido_paterno', {}).get('value'),
             'apellido_materno': res.get('apellido_materno', {}).get('value'),
@@ -266,12 +268,12 @@ def load_data_to_db(df_parlamentarios, df_partidos, conn):
             # 1. Insertar en la tabla principal `dim_parlamentario`
             cursor.execute("""
                 INSERT INTO dim_parlamentario (
-                    diputadoid, nombre_completo, nombre_propio, apellido_paterno, apellido_materno,
+                    diputadoid, bcn_person_id, nombre_completo, nombre_propio, apellido_paterno, apellido_materno,
                     genero, fecha_nacimiento, lugar_nacimiento, bcn_uri, url_foto,
                     twitter_handle, sitio_web_personal, profesion, url_historia_politica
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
-                row.get('diputadoid'), row.get('nombre_completo'), row.get('nombre_propio'),
+                row.get('diputadoid'), row.get('bcn_person_id'), row.get('nombre_completo'), row.get('nombre_propio'),
                 row.get('apellido_paterno'), row.get('apellido_materno'), row.get('genero'),
                 row.get('fecha_nacimiento'), row.get('lugar_nacimiento'),
                 row.get('bcn_uri'), row.get('url_foto'), row.get('twitter_handle'),
