@@ -30,7 +30,7 @@ Esta es la **tabla principal o maestra** de los proyectos de ley. Cada fila repr
     * `origen`: Cámara donde se inició el proyecto.
     * `urgencia`: Nivel de urgencia actual (ej: "Suma", "Simple").
     * `resultado_final`: Estado final (ej: "Publicado", "Rechazado", "En tramitación").
-    * `ley_numero`: Número de ley asignado si fue aprobado y publicado.
+    * `ley_numero`: Identificador numérico `<Id>` del proyecto (utilizado como número de ley).
     * `ley_fecha_publicacion`: Fecha de publicación en el Diario Oficial.
 
 ### Tabla: `bill_authors`
@@ -109,6 +109,6 @@ La siguiente tabla detalla cómo cada campo del XML se mapea a una columna en la
 | `<CamaraOrigen>/<Nombre>` | `bills` | `origen` | Cámara donde se inició el proyecto (ej: "Cámara de Diputados"). |
 | `<UrgenciaActual>` | `bills` | `urgencia` | Tipo de urgencia que tiene el proyecto (ej: "Suma", "Simple"). |
 | `<Estado>` | `bills` | `resultado_final` | El estado actual del proyecto (ej: "En tramitación", "Publicado"). |
-| `<Ley>/<Numero>` | `bills` | `ley_numero` | El número de ley asignado si el proyecto fue publicado. |
+| `<Id>` | `bills` | `ley_numero` | Identificador del proyecto devuelto por la API. |
 | `<Ley>/<FechaPublicacion>` | `bills` | `ley_fecha_publicacion` | Fecha de publicación en el Diario Oficial. |
 | `<Autores>...<Diputado>/<Id>` | `bill_authors` | `mp_uid` | Se itera, se extrae el `diputadoid` y se busca el `mp_uid` para la inserción.|

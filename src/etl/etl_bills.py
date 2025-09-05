@@ -125,7 +125,9 @@ def fetch_bill_details(bill_id: str):
 
         details["resultado_final"] = root.findtext('.//v1:Estado', namespaces=NS)
 
-        details["ley_numero"] = root.findtext('.//v1:Ley/v1:Numero', namespaces=NS)
+        # Algunos proyectos no cuentan con la etiqueta <Ley>/<Numero>.
+        # Se utiliza <Id> como identificador numérico del proyecto.
+        details["ley_numero"] = root.findtext('.//v1:Id', namespaces=NS)
 
         ley_fecha_str = root.findtext('.//v1:Ley/v1:FechaPublicacion', namespaces=NS)
         details["ley_fecha_publicacion"] = ley_fecha_str.split('T')[0] if ley_fecha_str else None
