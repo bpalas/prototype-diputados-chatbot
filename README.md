@@ -117,6 +117,30 @@ python src/etl/etl_votes.py
 python src/etl/etl_legislaturas.py
 ```
 
+### Carga progresiva por año (recomendada)
+
+Para poblar progresivamente la base (por años calendario) y aliviar carga de red, usa el orquestador por año:
+
+```bash
+# Solo 2022
+python src/scripts/run_etl_por_anio.py --from-year 2022
+
+# Rango 2018–2024 (inclusive)
+python src/scripts/run_etl_por_anio.py --from-year 2018 --to-year 2024
+
+# Si ya corriste el core (periodos/legislaturas/roster), puedes omitirlo
+python src/scripts/run_etl_por_anio.py --from-year 2022 --skip-core
+```
+
+Notas:
+- `etl_bills.py` acepta `--year` (o `--from-year/--to-year`) si se ejecuta directamente.
+- `etl_votes.py` acepta `--year` para limitar a bills con `fecha_ingreso` de ese año.
+- Intensidad estimada de red:
+  - Periodos/Legislaturas/Comisiones: baja.
+  - Roster actual + BCN: media.
+  - Bills: media/alta (dependiente del año; usa caché XML local).
+  - Votes: alta (usa caché XML por votación; se recomienda limitar por año).
+
 ---
 
 ## Generar Contexto para RAG

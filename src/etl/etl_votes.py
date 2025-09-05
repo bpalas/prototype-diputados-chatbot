@@ -2,21 +2,24 @@
 # -*- coding: utf-8 -*-
 
 """
-Módulo ETL para Votaciones Parlamentarias v2.0
+Módulo ETL para Votaciones Parlamentarias v2.1
 
-Este script implementa el proceso de Extracción, Transformación y Carga para poblar
-las tablas `sesiones_votacion` y `votos_parlamentario`.
-
-Implementa un sistema de caché local para los XML de los detalles de votación,
-evitando llamadas repetidas a la API y acelerando la re-ejecución.
+- Periodo temporal: por defecto procesa todas las votaciones de los `bills` en BD.
+  Opcionalmente puede filtrarse por año de `fecha_ingreso` del proyecto (`--year`).
+- Intensidad de red: alta (1 request por lista de votaciones por bill + 1 por detalle de votación),
+  mitigada por caché local por votación.
 """
 
-import sqlite3
-import requests
-import xml.etree.ElementTree as ET
+from __future__ import annotations
+
+import argparse
 import os
-import time
 import re
+import sqlite3
+import time
+import xml.etree.ElementTree as ET
+
+import requests
 
 # --- 1. CONFIGURACIÓN Y RUTAS DEL PROYETO ---
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
@@ -28,21 +31,26 @@ NS = {'v1': 'http://opendata.camara.cl/camaradiputados/v1'}
 
 # --- 2. FASE DE EXTRACCIÓN Y TRANSFORMACIÓN ---
 
-def get_bill_ids_from_db(conn):
+def get_bill_ids_from_db(conn: sqlite3.Connection, year: int | None = None):
     """
-    Obtiene todos los `bill_id` de la tabla local `bills`.
+    Obtiene todos los `bill_id` de la tabla local `bills`. Si `year` se indica,
+    filtra por `fecha_ingreso` del año dado.
     """
     print("[VOTES ETL] Obteniendo lista de proyectos de ley desde la base de datos local...")
     cursor = conn.cursor()
-    query = "SELECT bill_id FROM bills ORDER BY fecha_ingreso DESC"
-
-    cursor.execute(query)
+    if year is not None:
+        query = "SELECT bill_id FROM bills WHERE substr(fecha_ingreso,1,4)=? ORDER BY fecha_ingreso DESC"
+        cursor.execute(query, (str(year),))
+    else:
+        query = "SELECT bill_id FROM bills ORDER BY fecha_ingreso DESC"
+        cursor.execute(query)
     bill_ids = [row[0] for row in cursor.fetchall()]
 
     print(f"[VOTES ETL] Se encontraron {len(bill_ids)} proyectos para procesar.")
     return bill_ids
 
-def fetch_vote_ids_for_bill(bill_id):
+
+def fetch_vote_ids_for_bill(bill_id: str):
     """
     Para un `bill_id` dado, consulta la API para obtener los IDs de todas sus votaciones.
     (Nota: Esta parte no se cachea porque la lista de votaciones de un proyecto en curso podría cambiar).
@@ -69,7 +77,8 @@ def fetch_vote_ids_for_bill(bill_id):
         print(f"  ! Error de XML para el boletín {bill_id}: {e}")
     return []
 
-def parse_bill_id_from_description(description):
+
+def parse_bill_id_from_description(description: str | None):
     """
     Extrae un número de boletín (ej: 12345-67) del texto de descripción de una votación.
     """
@@ -78,7 +87,8 @@ def parse_bill_id_from_description(description):
     match = re.search(r'(\d{1,5}-\d{2})', description)
     return match.group(1) if match else None
 
-def normalize_vote_option(vote_text):
+
+def normalize_vote_option(vote_text: str):
     """
     Normaliza las diferentes opciones de voto al formato definido en el esquema.
     """
@@ -86,16 +96,16 @@ def normalize_vote_option(vote_text):
         'Afirmativo': 'A Favor',
         'En contra': 'En Contra',
         'Abstención': 'Abstención',
-        'Abstenci��n': 'Abstención',  # compatibilidad por posibles mojibake
+        'Abstención': 'Abstención',  # compatibilidad por posibles mojibake
         'Pareo': 'Pareo',
         'Dispensado': 'Pareo'  # Se asume que 'Dispensado' es un tipo de pareo
     }
     return vote_map.get(vote_text, vote_text)
 
 
-# --- 3. FASE DE CARGA (Load) CON LÓGICA DE CACHÉ ---
+# --- 3. FASE DE CARGA (Load) CON CACHÉ ---
 
-def process_and_load_vote_details(vote_id, conn):
+def process_and_load_vote_details(vote_id: str, conn: sqlite3.Connection):
     """
     Obtiene los detalles de una votación desde el caché o la API, los carga en `sesiones_votacion` y
     luego carga cada voto individual en `votos_parlamentario`.
@@ -201,13 +211,21 @@ def process_and_load_vote_details(vote_id, conn):
     except sqlite3.Error as e:
         print(f"     ! Error de base de datos para la votación {vote_id}: {e}")
 
+
 # --- 4. ORQUESTACIÓN ---
 
-def main():
+def main(year: int | None = None):
     """
-    Función principal que orquesta el proceso ETL para las votaciones.
+    Orquesta el proceso ETL de votaciones.
+
+    - year: si se especifica, limita a bills con `fecha_ingreso` en ese año.
     """
-    print("--- Iniciando Proceso ETL: Votaciones de Proyectos de Ley ---")
+    title = (
+        f"--- Iniciando Proceso ETL: Votaciones de Proyectos de Ley (año={year}) ---"
+        if year is not None
+        else "--- Iniciando Proceso ETL: Votaciones de Proyectos de Ley ---"
+    )
+    print(title)
 
     try:
         # Asegurarse de que el directorio para los XML de votaciones (caché) exista
@@ -216,7 +234,7 @@ def main():
         with sqlite3.connect(DB_PATH) as conn:
             conn.execute("PRAGMA foreign_keys = ON;")
 
-            bill_ids = get_bill_ids_from_db(conn)
+            bill_ids = get_bill_ids_from_db(conn, year)
 
             for bill_id in bill_ids:
                 vote_ids = fetch_vote_ids_for_bill(bill_id)
@@ -231,6 +249,14 @@ def main():
 
     print("\n--- Proceso ETL de Votaciones Finalizado ---")
 
+
+def _parse_args():
+    parser = argparse.ArgumentParser(description="ETL de votaciones; opcionalmente filtra por año del bill")
+    parser.add_argument("--year", type=int, help="Año (YYYY) para limitar los bills por fecha_ingreso")
+    return parser.parse_args()
+
+
 if __name__ == "__main__":
-    main()
+    args = _parse_args()
+    main(year=getattr(args, "year", None))
 
