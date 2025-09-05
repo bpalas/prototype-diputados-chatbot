@@ -21,6 +21,7 @@ CREATE TABLE dim_parlamentario (
     fecha_nacimiento DATE,
     lugar_nacimiento TEXT,
     diputadoid TEXT UNIQUE,
+    bcn_person_id TEXT UNIQUE,
     bcn_uri TEXT,
     url_foto TEXT,
     twitter_handle TEXT,
