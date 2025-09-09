@@ -1,8 +1,7 @@
 -- ######################################################################
--- ## Esquema de Base de Datos v5.3 (Híbrido y Consolidado)            ##
+-- ## Esquema de Base de Datos v5.5 (Sin Educación/Resultados Electorales) ##
 -- ## ---------------------------------------------------------------- ##
--- ## Añade `bcn_historia_id` a `dim_normas`, `senadorid` a            ##
--- ## `dim_parlamentario` y nuevas tablas para `Ministerios Patrocinantes`. ##
+-- ## Se eliminan las tablas `educacion` y `electoral_results`.         ##
 -- ######################################################################
 
 -- Configuración inicial para mejor rendimiento y consistencia
@@ -22,15 +21,17 @@ CREATE TABLE dim_parlamentario (
     fecha_nacimiento DATE,
     lugar_nacimiento TEXT,
     diputadoid TEXT UNIQUE,
-    senadorid TEXT UNIQUE, -- NUEVO: ID de Senador de la API de la Cámara
+    senadorid TEXT UNIQUE,
     bcn_person_id TEXT UNIQUE,
     bcn_uri TEXT,
     url_foto TEXT,
     twitter_handle TEXT,
     sitio_web_personal TEXT,
     profesion TEXT,
+    partido_militante_actual_id INTEGER,
     url_historia_politica TEXT,
-    fecha_extraccion DATE DEFAULT (date('now'))
+    fecha_extraccion DATE DEFAULT (date('now')),
+    FOREIGN KEY (partido_militante_actual_id) REFERENCES dim_partidos(partido_id)
 );
 
 CREATE TABLE dim_periodo_legislativo (
@@ -84,9 +85,9 @@ CREATE TABLE dim_materias (
 );
 
 CREATE TABLE dim_normas (
-    norma_id INTEGER PRIMARY KEY,        -- Llave interna para joins rápidos
-    bcn_norma_id TEXT UNIQUE,            -- Llave externa y única de la BCN para referencias de LeyChile (ej: 235507)
-    bcn_historia_id TEXT UNIQUE,         -- ID interno de la BCN para la página "Historia de la Ley" (ej: 5755)
+    norma_id INTEGER PRIMARY KEY,
+    bcn_norma_id TEXT UNIQUE,
+    bcn_historia_id TEXT UNIQUE,
     numero_norma TEXT NOT NULL,
     tipo_norma TEXT,
     titulo_norma TEXT,
@@ -95,9 +96,9 @@ CREATE TABLE dim_normas (
     url_ley_chile TEXT
 );
 
-CREATE TABLE dim_ministerios ( -- NUEVO: Tabla para ministerios
+CREATE TABLE dim_ministerios (
     ministerio_id INTEGER PRIMARY KEY AUTOINCREMENT,
-    camara_ministerio_id INTEGER UNIQUE, -- ID de la Cámara de Diputados para ministerios
+    camara_ministerio_id INTEGER UNIQUE,
     nombre_ministerio TEXT NOT NULL UNIQUE
 );
 
@@ -137,25 +138,6 @@ CREATE TABLE comision_membresias (
     FOREIGN KEY (comision_id) REFERENCES dim_comisiones(comision_id)
 );
 
-CREATE TABLE electoral_results (
-    result_id INTEGER PRIMARY KEY AUTOINCREMENT,
-    mp_uid INTEGER NOT NULL,
-    fecha_eleccion DATE NOT NULL,
-    cargo TEXT,
-    distrito INTEGER,
-    total_votos INTEGER,
-    FOREIGN KEY (mp_uid) REFERENCES dim_parlamentario(mp_uid) ON DELETE CASCADE
-);
-
-CREATE TABLE educacion (
-    edu_id INTEGER PRIMARY KEY AUTOINCREMENT,
-    mp_uid INTEGER NOT NULL,
-    titulo TEXT,
-    institucion TEXT,
-    ano_graduacion INTEGER,
-    FOREIGN KEY (mp_uid) REFERENCES dim_parlamentario(mp_uid) ON DELETE CASCADE
-);
-
 -- ======================================================================
 -- MÓDULO 3: ACTIVIDAD LEGISLATIVA (El "Qué hacen")
 -- ======================================================================
@@ -173,7 +155,7 @@ CREATE TABLE bills (
     resultado_final TEXT,
     estado TEXT NOT NULL,
     refundidos TEXT,
-    numero_ley TEXT, -- Columna para el número de ley limpio.
+    numero_ley TEXT,
     norma_id INTEGER,
     fecha_actualizacion DATETIME,
     FOREIGN KEY (norma_id) REFERENCES dim_normas(norma_id)
@@ -187,7 +169,7 @@ CREATE TABLE bill_authors (
     FOREIGN KEY (mp_uid) REFERENCES dim_parlamentario(mp_uid)
 );
 
-CREATE TABLE bill_ministerios_patrocinantes ( -- NUEVO: Para vincular ministerios a proyectos de ley
+CREATE TABLE bill_ministerios_patrocinantes (
     bill_id TEXT NOT NULL,
     ministerio_id INTEGER NOT NULL,
     PRIMARY KEY (bill_id, ministerio_id),
@@ -202,7 +184,7 @@ CREATE TABLE bill_tramites (
     descripcion TEXT NOT NULL,
     etapa_general TEXT,
     etapa_especifica TEXT,
-    camara TEXT,y 
+    camara TEXT,
     sesion TEXT,
     FOREIGN KEY (bill_id) REFERENCES bills(bill_id) ON DELETE CASCADE
 );
@@ -212,9 +194,9 @@ CREATE TABLE bill_documentos (
     bill_id TEXT NOT NULL,
     tramite_id INTEGER,
     tipo_documento TEXT NOT NULL,
-    url_documento TEXT NOT NULL UNIQUE, -- Añadimos UNIQUE para evitar duplicados si hay re-ejecuciones
+    url_documento TEXT NOT NULL UNIQUE,
     fecha_documento DATE,
-    descripcion TEXT, -- Añadimos para guardar el texto del enlace si es descriptivo
+    descripcion TEXT,
     FOREIGN KEY (bill_id) REFERENCES bills(bill_id) ON DELETE CASCADE,
     FOREIGN KEY (tramite_id) REFERENCES bill_tramites(tramite_id)
 );
@@ -304,7 +286,8 @@ CREATE INDEX idx_bills_estado ON bills(estado);
 CREATE INDEX idx_entity_sources_lookup ON entity_sources(entity_id, entity_type);
 CREATE INDEX idx_bills_numero_ley ON bills(numero_ley);
 CREATE INDEX idx_dim_normas_bcn_historia_id ON dim_normas(bcn_historia_id);
-CREATE INDEX idx_dim_parlamentario_senadorid ON dim_parlamentario(senadorid); -- NUEVO ÍNDICE
-CREATE INDEX idx_dim_ministerios_camara_id ON dim_ministerios(camara_ministerio_id); -- NUEVO ÍNDICE
-CREATE INDEX idx_bill_ministerios_patrocinantes_bill_id ON bill_ministerios_patrocinantes(bill_id); -- NUEVO ÍNDICE
-CREATE INDEX idx_bill_ministerios_patrocinantes_ministerio_id ON bill_ministerios_patrocinantes(ministerio_id); -- NUEVO ÍNDICE
+CREATE INDEX idx_dim_parlamentario_senadorid ON dim_parlamentario(senadorid);
+CREATE INDEX idx_dim_parlamentario_partido_actual ON dim_parlamentario(partido_militante_actual_id);
+CREATE INDEX idx_dim_ministerios_camara_id ON dim_ministerios(camara_ministerio_id);
+CREATE INDEX idx_bill_ministerios_patrocinantes_bill_id ON bill_ministerios_patrocinantes(bill_id);
+CREATE INDEX idx_bill_ministerios_patrocinantes_ministerio_id ON bill_ministerios_patrocinantes(ministerio_id);
