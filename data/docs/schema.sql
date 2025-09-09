@@ -202,7 +202,7 @@ CREATE TABLE bill_tramites (
     descripcion TEXT NOT NULL,
     etapa_general TEXT,
     etapa_especifica TEXT,
-    camara TEXT,
+    camara TEXT,y 
     sesion TEXT,
     FOREIGN KEY (bill_id) REFERENCES bills(bill_id) ON DELETE CASCADE
 );
